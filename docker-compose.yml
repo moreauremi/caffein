@@ -1,0 +1,32 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# Caffein avec Docker Compose
+#   docker compose up -d          → http://localhost:8000 (assistant d'installation au premier lancement)
+#   docker compose logs -f        → journaux
+#   docker compose exec caffein caffein backup
+#
+# La configuration (clé IA, SMTP…) se règle dans le fichier .env à côté de ce fichier
+# (copiez .env.example). Les données vivent dans le volume « caffein-data ».
+
+services:
+  caffein:
+    build: .
+    image: caffein:latest
+    container_name: caffein
+    restart: unless-stopped
+    ports:
+      # Derrière un reverse proxy sur la même machine, préférez "127.0.0.1:8000:8000"
+      - "${CAFFEIN_PORT:-8000}:8000"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      # valeurs propres au conteneur : elles priment sur le fichier .env
+      CAFFEIN_DATA_DIR: /data
+      CAFFEIN_HOST: 0.0.0.0
+      CAFFEIN_PORT: "8000"
+    volumes:
+      - caffein-data:/data
+
+volumes:
+  caffein-data:

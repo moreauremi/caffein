@@ -1,0 +1,18 @@
+name: Proposer une amélioration
+description: Une idée de fonctionnalité ou d'évolution
+labels: [amélioration]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Quel problème voulez-vous résoudre ?
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Solution envisagée
+  - type: textarea
+    id: context
+    attributes:
+      label: Contexte (statut, activité, volume de factures…)

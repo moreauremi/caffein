@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Exemple Caddy : HTTPS automatique (Let's Encrypt) devant Caffein.
+# Dans la configuration de Caffein : CAFFEIN_APP_URL=https://caffein.example.com
+
+caffein.example.com {
+	request_body {
+		max_size 25MB
+	}
+	reverse_proxy 127.0.0.1:8000
+}

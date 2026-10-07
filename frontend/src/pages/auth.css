@@ -1,0 +1,23 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Pages de connexion et d'installation */
+.auth { min-height: 100vh; display: grid; grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr); }
+.auth-side { position: relative; overflow: hidden; background: #111110; color: #F5F5F2; }
+.auth-glow { position: absolute; width: 760px; height: 760px; right: -300px; top: -300px; border-radius: 999px; pointer-events: none;
+  background: radial-gradient(circle at center, rgba(232, 81, 14, 0.85) 0%, rgba(232, 81, 14, 0.35) 30%, rgba(232, 81, 14, 0) 66%); filter: blur(10px); }
+.auth-side-inner { position: relative; height: 100%; min-height: 100vh; padding: 40px 48px; display: flex; flex-direction: column; justify-content: space-between; gap: 40px; }
+.auth-title { font-family: var(--font-display); font-weight: 400; font-size: clamp(38px, 4vw, 56px); line-height: 1.04; letter-spacing: -0.025em; }
+.auth-title em { color: #FF8A55; }
+.auth-icon { width: 32px; height: 32px; border-radius: 10px; display: grid; place-items: center; background: rgba(232, 81, 14, 0.16); color: #FF8A55; flex: none; }
+.auth-main { position: relative; display: grid; place-items: center; padding: 48px 24px; }
+.auth-top { position: absolute; top: 20px; right: 24px; display: flex; gap: 6px; }
+.auth-card { width: 100%; max-width: 420px; animation: rise 0.4s ease both; }
+.auth-card.wide { max-width: 560px; }
+.auth-steps { display: flex; gap: 8px; margin: 22px 0 26px; }
+.auth-steps span { flex: 1; height: 4px; border-radius: 999px; background: var(--surface-3); transition: background 0.3s; }
+.auth-steps span.done { background: var(--accent); }
+.demo-btn { animation: glow 2.4s ease-in-out infinite; }
+@media (max-width: 900px) {
+  .auth { grid-template-columns: minmax(0, 1fr); }
+  .auth-side { display: none; }
+  .auth-main { min-height: 100vh; padding-top: 72px; }
+}

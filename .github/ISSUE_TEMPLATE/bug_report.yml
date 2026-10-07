@@ -1,0 +1,32 @@
+name: Signaler un bug
+description: Quelque chose ne fonctionne pas comme prévu
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: "Merci ! Pour une faille de sécurité, n'ouvrez pas de ticket public : voir SECURITY.md."
+  - type: textarea
+    id: what
+    attributes:
+      label: Que s'est-il passé ?
+      description: Ce que vous avez fait, ce que vous attendiez, ce que vous avez obtenu.
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: Type d'installation
+      options: [Docker, Linux (install.sh), Local (start.sh), Autre]
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version de Caffein
+      description: Visible dans Paramètres → À propos
+  - type: textarea
+    id: logs
+    attributes:
+      label: Journaux
+      description: "docker compose logs caffein, ou journalctl -u caffein -n 100 (retirez les données personnelles)"
+      render: shell

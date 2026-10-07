@@ -1,0 +1,15 @@
+# Ne pas envoyer au démon Docker : dépendances locales, données, secrets
+.git
+.github
+.env
+data
+docs
+**/node_modules
+**/.venv*
+**/__pycache__
+**/.pytest_cache
+**/.ruff_cache
+frontend/dist
+backend/tests
+*.log
+.DS_Store

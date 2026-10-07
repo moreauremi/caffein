@@ -1,0 +1,43 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Service systemd de Caffein (installé par install.sh dans /etc/systemd/system/)
+[Unit]
+Description=Caffein — gestion libre pour freelances et TPE
+Documentation=file:///opt/caffein/README.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=caffein
+Group=caffein
+WorkingDirectory=/opt/caffein/backend
+Environment=CAFFEIN_ENV_FILE=/etc/caffein/caffein.env
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=/opt/caffein/venv/bin/python -m caffein serve
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=20
+
+# Durcissement : seul le dossier de données est accessible en écriture
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/caffein
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+RestrictNamespaces=true
+LockPersonality=true
+SystemCallArchitectures=native
+UMask=0027
+
+[Install]
+WantedBy=multi-user.target

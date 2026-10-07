@@ -1,0 +1,108 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: Backend (Python ${{ matrix.python }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ["3.10", "3.13"]
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: backend/requirements*.txt
+      - run: pip install -r requirements-dev.txt
+      - run: ruff check caffein tests
+      - run: pytest -q
+
+  frontend:
+    name: Interface web
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+
+  scripts:
+    name: Scripts shell
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: shellcheck install.sh start.sh dev.sh deploy/*.sh
+
+  docker:
+    name: Image Docker
+    runs-on: ubuntu-latest
+    needs: [backend, frontend]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: caffein:ci
+      - name: Démarrage et assistant d'installation
+        run: |
+          docker run -d --name caffein -p 8000:8000 caffein:ci
+          for _ in $(seq 1 30); do curl -fs http://localhost:8000/api/health && break; sleep 2; done
+          curl -fs http://localhost:8000/api/setup/status | grep -q '"needs_setup":true'
+          curl -fs -X POST http://localhost:8000/api/setup -H 'Content-Type: application/json' \
+            -d '{"organization":{"company":"CI"},"admin":{"full_name":"CI","email":"ci@example.com","password":"motdepasse-ci"}}'
+          docker exec caffein caffein users | grep -q ci@example.com
+          docker exec caffein caffein backup
+      - if: always()
+        run: docker logs caffein
+
+  install-linux:
+    name: Installation Linux (systemd)
+    runs-on: ubuntu-latest
+    needs: [backend, frontend]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Build de l'interface (comme dans une archive de version)
+        run: cd frontend && npm ci && npm run build
+      - name: Installation
+        run: sudo ./install.sh --yes
+      - name: Vérifications
+        run: |
+          curl -fs http://127.0.0.1:8000/api/health
+          systemctl is-active caffein
+          sudo caffein migrate
+          sudo caffein seed --demo
+          echo "motdepasse-ci" | sudo CAFFEIN_ADMIN_PASSWORD=motdepasse-ci caffein create-admin --email ci@example.com
+          sudo caffein users | grep -q ci@example.com
+          sudo caffein backup
+      - name: Mise à jour (réinstallation idempotente)
+        run: sudo ./install.sh --yes && curl -fs http://127.0.0.1:8000/api/health
+      - name: Désinstallation
+        run: echo supprimer | sudo ./deploy/uninstall.sh --purge && ! test -d /opt/caffein
+      - if: failure()
+        run: sudo journalctl -u caffein -n 100 --no-pager
