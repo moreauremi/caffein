@@ -4,7 +4,7 @@
 # Image Caffein : docker build -t caffein .   puis   docker compose up -d
 
 # ── 1. Interface web (Node uniquement pour le build) ─────────────────────
-FROM node:22-alpine AS frontend
+FROM node:26-alpine AS frontend
 WORKDIR /build/frontend
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci --no-audit --no-fund
