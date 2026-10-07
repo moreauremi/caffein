@@ -28,7 +28,7 @@ jobs:
           tar -rf "caffein-$V.tar" --transform "s,^,caffein-$V/," frontend/dist
           gzip -9 "caffein-$V.tar"
           sha256sum "caffein-$V.tar.gz" > "caffein-$V.tar.gz.sha256"
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         with:
           files: |
             caffein-*.tar.gz
