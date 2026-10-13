@@ -161,6 +161,10 @@ deploy/            service systemd, reverse proxy, désinstallation
 Les contributions sont bienvenues : tickets, corrections, traductions, nouvelles fonctionnalités.
 Lisez [CONTRIBUTING.md](CONTRIBUTING.md) avant d'ouvrir une pull request. Pour une faille de sécurité, suivez [SECURITY.md](SECURITY.md).
 
+## Réalisation
+
+Réalisé avec [Claude Code](https://claude.com/claude-code). Mon rôle : définir le besoin, faire les choix et tester.
+
 ## Licence
 
 Caffein est distribué sous licence **GNU Affero General Public License v3.0 ou ultérieure** ([LICENSE](LICENSE)).
