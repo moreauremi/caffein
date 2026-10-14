@@ -479,6 +479,16 @@ def _clean_record(entity: Entity, fields: list[Field], data: dict, existing: dic
     return values
 
 
+def safe_fill(target: Entity, fill: dict[str, str] | None) -> dict[str, str]:
+    """Champs recopiables d'une fiche : jamais un champ sensible (salaire…), jamais un champ calculé."""
+    out = {}
+    for local, remote in (fill or {}).items():
+        fld = target.field(remote)
+        if remote == "id" or (fld is not None and not fld.sensitive and not fld.computed):
+            out[local] = remote
+    return out
+
+
 def _fill_from_refs(fields: list[Field], values: dict, data: dict) -> None:
     """Recopie les champs déclarés dans `fill` depuis la fiche référencée, s'ils sont restés vides
     (ex. article choisi sur une ligne → description et prix de l'article)."""
@@ -488,9 +498,12 @@ def _fill_from_refs(fields: list[Field], values: dict, data: dict) -> None:
         target = _ref_entity(fld)
         if target is None:
             continue
-        source = db.fetch_one(f"SELECT {', '.join(dict.fromkeys(fld.fill.values()))} FROM {target.table} WHERE id = ?",
+        fill = safe_fill(target, fld.fill)
+        if not fill:
+            continue
+        source = db.fetch_one(f"SELECT {', '.join(dict.fromkeys(fill.values()))} FROM {target.table} WHERE id = ?",
                               (values[fld.name],))
-        for local, remote in (fld.fill or {}).items():
+        for local, remote in fill.items():
             local_field = next((f for f in fields if f.name == local), None)
             if source is None or local_field is None or local_field.readonly or local_field.computed:
                 continue
@@ -507,11 +520,16 @@ def _check_unique(entity: Entity, values: dict, row_id: int | None) -> None:
                 raise ValueError(f"{fld.label[0]} : « {values[fld.name]} » existe déjà.")
 
 
-def next_code(table: str, column: str, prefix: str, ref: date | None = None, yearly: bool = True) -> str:
-    """Numéro suivant : PREFIX-2026-0001 (ou PREFIX-0001 sans l'année)."""
+def next_code(table: str, column: str, prefix: str, ref: date | None = None, yearly: bool = True,
+              conn: sqlite3.Connection | None = None) -> str:
+    """Numéro suivant : PREFIX-2026-0001 (ou PREFIX-0001 sans l'année). Avec `conn` (transaction ouverte par
+    BEGIN IMMEDIATE), le numéro est lu sous verrou d'écriture : deux créations simultanées n'ont jamais le même."""
     stem = f"{prefix}-{(ref or today()).year}-" if yearly else f"{prefix}-"
-    row = db.fetch_one(f"SELECT {column} AS code FROM {table} WHERE {column} LIKE ? ORDER BY {column} DESC LIMIT 1",
-                       (stem.replace("_", "\\_") + "%",))
+    # longueur d'abord : après PREFIX-9999 vient PREFIX-10000, plus long mais « plus petit » dans l'ordre alphabétique
+    sql = (f"SELECT {column} AS code FROM {table} WHERE {column} LIKE ? ESCAPE '\\' "
+           f"ORDER BY LENGTH({column}) DESC, {column} DESC LIMIT 1")
+    pattern = (stem.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%",)
+    row = conn.execute(sql, pattern).fetchone() if conn is not None else db.fetch_one(sql, pattern)
     seq = 1
     if row and row["code"]:
         tail = row["code"][len(stem):]
@@ -575,10 +593,12 @@ def save_row(entity: Entity, data: dict, level: int, row_id: int | None = None) 
     fields = visible_fields(entity, entity.fields, level)
     values = _clean_record(entity, fields, data, existing)
     children = _clean_children(entity, data, level)
+    auto: list[Field] = []  # numéros attribués ici : relus sous verrou au moment d'écrire
     for fld in entity.fields:
         if fld.type == "code" and fld.prefix:
             if existing is None and _empty(values.get(fld.name)):
                 values[fld.name] = next_code(entity.table, fld.name, fld.prefix, yearly=fld.yearly)
+                auto.append(fld)
             elif existing is not None and _empty(values.get(fld.name, "x")):
                 values.pop(fld.name, None)  # un numéro attribué ne s'efface pas
     if entity.prepare:
@@ -593,6 +613,10 @@ def save_row(entity: Entity, data: dict, level: int, row_id: int | None = None) 
     try:
         with db.connect() as conn:
             if existing is None:
+                if auto:
+                    conn.execute("BEGIN IMMEDIATE")
+                    for fld in auto:
+                        values[fld.name] = next_code(entity.table, fld.name, fld.prefix, yearly=fld.yearly, conn=conn)
                 if "created_at" in columns:
                     values["created_at"] = now
                 values = {k: v for k, v in values.items() if v is not None}  # les valeurs par défaut SQL s'appliquent
@@ -722,7 +746,8 @@ def options(entity: Entity, q: str | None = None, limit: int = 20, fill: dict[st
         where = "WHERE " + " OR ".join(f"{c} LIKE ? ESCAPE '\\'" for c in dict.fromkeys(cols))
         params = [pattern] * len(dict.fromkeys(cols))
     sub = f", {subtitle} AS sublabel" if subtitle else ""
-    remote = list(dict.fromkeys((fill or {}).values()))
+    fill = safe_fill(entity, fill)
+    remote = list(dict.fromkeys(fill.values()))
     extra = "".join(f", {name} AS fill__{name}" for name in remote)
     rows = db.fetch_all(f"SELECT id, {title} AS label{sub}{extra} FROM {entity.table} {where} ORDER BY {title} COLLATE NOCASE "
                         f"LIMIT ?", (*params, max(1, min(limit, 50))))

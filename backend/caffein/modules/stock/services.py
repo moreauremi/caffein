@@ -7,6 +7,8 @@ Les Ventes, les Achats et la Production ne connaissent pas la Logistique : ils a
 
 from __future__ import annotations
 
+from datetime import date as date_cls
+
 from ... import db
 from ...core import entities
 from ...core.modules import MANAGE
@@ -56,9 +58,8 @@ def post(kind: str, lines: list[dict], *, sign: int, reference: str = "", date: 
     with db.connect() as conn:
         conn.execute("BEGIN IMMEDIATE")  # numérotation et insertion ensemble
         stem = f"MVT-{day[:4]}-"
-        last = conn.execute("SELECT code FROM stock_movements WHERE code LIKE ? ORDER BY code DESC LIMIT 1",
-                            (stem + "%",)).fetchone()
-        seq = int(last["code"][len(stem):]) if last and last["code"][len(stem):].isdigit() else 0
+        first = entities.next_code("stock_movements", "code", "MVT", ref=date_cls.fromisoformat(day), conn=conn)
+        seq = int(first[len(stem):]) - 1
         for line in rows:
             seq += 1
             conn.execute(
