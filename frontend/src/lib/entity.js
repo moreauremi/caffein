@@ -47,6 +47,7 @@ export function buildPayload(entity, form, children) {
   const payload = {}
   for (const field of editableFields(entity.fields)) payload[field.name] = form[field.name] ?? null
   for (const child of entity.children) {
+    if (child.writable === false) continue // lignes calculées par le serveur : jamais envoyées
     const fields = editableFields(child.fields)
     payload[child.key] = (children[child.key] || []).map((line) => Object.fromEntries(fields.map((f) => [f.name, line[f.name] ?? null])))
   }

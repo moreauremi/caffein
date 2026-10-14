@@ -230,3 +230,6 @@ ORDERS = Entity(
 )
 
 ENTITIES = [CLIENTS, ORDERS]
+
+# Lignes de factures et de devis (écran sur mesure) : un article utilisé ne se supprime pas
+REFERENCES = [("invoice_lines", "article_id", "technical.articles", ("Factures et devis", "Invoices and quotes"))]

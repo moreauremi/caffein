@@ -78,6 +78,7 @@ class Module:
     kpis: list[Kpi] = field(default_factory=list)
     shortcuts: list[Shortcut] = field(default_factory=list)
     events: dict[str, Callable[[dict], Any]] = field(default_factory=dict)  # abonnements aux événements des autres modules
+    references: list[tuple] = field(default_factory=list)  # colonnes hors entités qui désignent une fiche (entities.REFERENCES)
     seed_demo: Callable[[], None] | None = None
     reset_tables: tuple[str, ...] = ()       # tables vidées par la réinitialisation (ordre des clés étrangères)
 
@@ -113,6 +114,7 @@ def load() -> dict[str, Module]:
         for module in REGISTRY.values():
             for entity in module.entities:
                 entities.register(entity)
+            entities.REFERENCES.extend(module.references)
     return REGISTRY
 
 

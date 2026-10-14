@@ -6,7 +6,8 @@ from __future__ import annotations
 from ... import db, services
 from ...core.modules import Kpi, Module, Page, Shortcut
 from . import routes
-from .entities import ENTITIES, MIGRATIONS
+from .demo import seed_demo
+from .entities import ENTITIES, MIGRATIONS, REFERENCES
 
 
 def _summary_kpi(value: str, count: str):
@@ -51,5 +52,7 @@ MODULE = Module(
         Shortcut("new_invoice", ("Nouvelle facture", "New invoice"), "/ventes/factures?new=invoice", icon="Plus"),
         Shortcut("new_order", ("Nouvelle commande", "New order"), "/ventes/commandes?new=1", icon="ShoppingBag"),
     ],
+    references=REFERENCES,
+    seed_demo=seed_demo,
     reset_tables=("sales_order_lines", "sales_orders"),
 )

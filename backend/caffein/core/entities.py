@@ -56,6 +56,7 @@ class Field:
     hidden: bool = False                          # lu avec la fiche (actions, calculs) mais jamais affiché
     help: Label | None = None
     prefix: str | None = None                     # type code : « CF » → CF-2026-0001
+    yearly: bool = True                           # type code : numéro par année (CF-2026-0001) ou continu (ART-0001)
     width: str = "half"                           # mise en page du formulaire : half | full
 
     def __post_init__(self) -> None:
@@ -125,6 +126,7 @@ class Entity:
     # Ajoute les champs calculés (Python). Reçoit des fiches avec leurs lignes (fiche, aperçu de saisie)
     # ou sans (liste) : dans ce cas, calculer par une requête groupée.
     compute: Callable[[list[dict]], None] | None = None
+    prepare: Callable[[dict, dict | None], None] | None = None   # ajuste les valeurs avant contrôle (signe, champ dérivé…)
     validate: Callable[[dict, dict | None], None] | None = None  # contrôles métier (ValueError)
     after_save: Callable[[int, bool], None] | None = None
     before_delete: Callable[[dict], None] | None = None          # Conflict pour interdire
@@ -153,6 +155,10 @@ class Entity:
 
 
 ENTITIES: dict[str, Entity] = {}
+
+# Colonnes hors entités qui désignent une fiche d'une entité (ex. lignes de factures → articles) :
+# (table, colonne, entité référencée, libellé). Les champs `ref` des entités sont trouvés tout seuls.
+REFERENCES: list[tuple[str, str, str, Label]] = []
 
 
 def register(entity: Entity) -> Entity:
@@ -476,10 +482,15 @@ def next_code(table: str, column: str, prefix: str, ref: date | None = None, yea
     return f"{stem}{seq:04d}"
 
 
+def writable(child: Child) -> bool:
+    """Des lignes dont tous les champs sont remplis par le serveur (besoins calculés…) ne se saisissent pas."""
+    return any(not f.readonly and not f.computed for f in child.fields)
+
+
 def _clean_children(entity: Entity, data: dict, level: int) -> dict[str, list[dict]]:
     out = {}
     for child in entity.children:
-        if child.key not in data:
+        if child.key not in data or not writable(child):
             continue
         raw_rows = data[child.key]
         if not isinstance(raw_rows, list):
@@ -530,9 +541,11 @@ def save_row(entity: Entity, data: dict, level: int, row_id: int | None = None) 
     for fld in entity.fields:
         if fld.type == "code" and fld.prefix:
             if existing is None and _empty(values.get(fld.name)):
-                values[fld.name] = next_code(entity.table, fld.name, fld.prefix)
+                values[fld.name] = next_code(entity.table, fld.name, fld.prefix, yearly=fld.yearly)
             elif existing is not None and _empty(values.get(fld.name, "x")):
                 values.pop(fld.name, None)  # un numéro attribué ne s'efface pas
+    if entity.prepare:
+        entity.prepare(values, existing)
     _check_unique(entity, values, row_id)
     if entity.validate:
         entity.validate({**(existing or {}), **values, **children}, existing)
@@ -561,6 +574,24 @@ def save_row(entity: Entity, data: dict, level: int, row_id: int | None = None) 
     return row_id
 
 
+def usages(entity: Entity, row_id: int) -> list[tuple[Label, int]]:
+    """Où une fiche est utilisée, dans tous les modules (actifs ou non : leurs données restent en base)."""
+    holders: list[tuple[str, str, Label]] = []
+    for other in ENTITIES.values():
+        if other.readonly:
+            continue
+        holders += [(other.table, f.name, other.plural) for f in other.fields if f.type == "ref" and f.ref == entity.key]
+        for child in other.children:
+            holders += [(child.table, f.name, other.plural) for f in child.fields if f.type == "ref" and f.ref == entity.key]
+    holders += [(table, column, label) for table, column, key, label in REFERENCES if key == entity.key]
+    found: dict[Label, int] = {}
+    for table, column, label in holders:
+        n = db.fetch_one(f"SELECT COUNT(*) AS n FROM {table} WHERE {column} = ?", (row_id,))["n"]
+        if n:
+            found[label] = found.get(label, 0) + n
+    return list(found.items())
+
+
 def delete_row(entity: Entity, row_id: int) -> None:
     if entity.readonly:
         raise Conflict("Ces données sont calculées : elles ne se suppriment pas.")
@@ -569,6 +600,10 @@ def delete_row(entity: Entity, row_id: int) -> None:
         raise Conflict(reason)
     if entity.before_delete:
         entity.before_delete(row)
+    used = usages(entity, row_id)
+    if used:
+        detail = ", ".join(f"{label[0].lower()} : {n}" for label, n in used)
+        raise Conflict(f"Suppression impossible : cette fiche est utilisée ailleurs ({detail}).")
     try:
         with db.connect() as conn:
             for child in entity.children:
@@ -691,7 +726,7 @@ def meta(entity: Entity, level: int) -> dict:
         "key": entity.key, "module": entity.module, "name": entity.name, "label": entity.label, "plural": entity.plural,
         "title": entity.title, "subtitle": entity.subtitle, "icon": entity.icon, "description": entity.description,
         "readonly": entity.readonly, "fields": [_field_meta(f) for f in fields],
-        "children": [{"key": c.key, "label": c.label, "min_rows": c.min_rows,
+        "children": [{"key": c.key, "label": c.label, "min_rows": c.min_rows, "writable": writable(c),
                       "fields": [_field_meta(f) for f in visible_fields(entity, c.fields, level) if not f.hidden]}
                      for c in entity.children],
         "actions": [{"key": a.key, "label": a.label, "level": a.level, "confirm": a.confirm, "style": a.style,
@@ -703,5 +738,6 @@ def meta(entity: Entity, level: int) -> dict:
 
 
 __all__ = ["Field", "Child", "Action", "Entity", "ENTITIES", "register", "get", "list_rows", "get_row", "save_row",
-           "delete_row", "run_action", "options", "meta", "next_code", "visible_fields", "preview", "ref_label",
+           "delete_row", "run_action", "options", "meta", "next_code", "visible_fields", "preview", "ref_label", "usages",
+           "REFERENCES",
            "READ", "WRITE", "MANAGE"]

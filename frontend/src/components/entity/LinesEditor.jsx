@@ -9,9 +9,10 @@ const NUMERIC = ['int', 'decimal', 'money', 'percent']
 
 // Lignes rattachées à une fiche (lignes de commande, composants…). Les colonnes calculées (montants)
 // viennent du serveur (`computed`, une entrée par ligne) : rien n'est calculé ici.
-export default function LinesEditor({ child, lines, computed, onChange, entityKey, disabled = false }) {
+export default function LinesEditor({ child, lines, computed, onChange, entityKey, disabled: locked = false }) {
   const { t, pick } = useLanguage()
   const editable = child.fields.filter((f) => !f.readonly)
+  const disabled = locked || child.writable === false || editable.length === 0
   const shown = child.fields
 
   function setLine(index, name, value, option) {

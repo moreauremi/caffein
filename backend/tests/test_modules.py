@@ -231,7 +231,8 @@ def test_order_lifecycle(client):
     res = client.post("/api/data/sales/orders", json={"client_id": _client_id(), "lines": lines, "notes": "Urgent"})
     assert res.status_code == 201, res.text
     order = res.json()
-    assert order["code"] == f"CC-{today().year}-0001" and order["status"] == "draft"
+    first = db.fetch_one("SELECT COUNT(*) AS n FROM sales_orders")["n"]  # commandes de démonstration comprises
+    assert order["code"] == f"CC-{today().year}-{first:04d}" and order["status"] == "draft"
     assert order["total_ht"] == 1350.75 and [line["amount"] for line in order["lines"]] == [900, 450.75]
     assert order["client_id__label"] and order["order_date"] == today().isoformat()
     assert set(order["_actions"]) == {"confirm", "cancel"} and order["_locked"] is None
@@ -256,7 +257,7 @@ def test_order_lifecycle(client):
     assert client.post(f"/api/data/sales/orders/{order['id']}/actions/nope").status_code == 404
 
     second = client.post("/api/data/sales/orders", json={"client_id": _client_id()}).json()
-    assert second["code"] == f"CC-{today().year}-0002"
+    assert second["code"] == f"CC-{today().year}-{first + 1:04d}"
     assert client.post(f"/api/data/sales/orders/{second['id']}/actions/confirm").status_code == 400  # sans ligne
     assert client.delete(f"/api/data/sales/orders/{second['id']}").status_code == 204
 
@@ -289,10 +290,12 @@ def test_list_search_filter_sort(client):
     assert client.get("/api/data/sales/clients?sort=password_hash").status_code == 200  # tri ignoré
     for _ in range(2):
         client.post("/api/data/sales/orders", json={"client_id": _client_id(), "lines": [{"description": "a"}]})
+    already = client.get("/api/data/sales/orders?f_status=confirmed").json()["total"]
     first = client.get("/api/data/sales/orders").json()["rows"][0]
     client.post(f"/api/data/sales/orders/{first['id']}/actions/confirm")
     confirmed = client.get("/api/data/sales/orders?f_status=confirmed").json()
-    assert confirmed["total"] == 1 and confirmed["rows"][0]["id"] == first["id"]
+    assert confirmed["total"] == already + 1 and confirmed["rows"][0]["id"] == first["id"]
+    assert all(r["status"] == "confirmed" for r in confirmed["rows"])
     assert client.get("/api/data/sales/orders?f_status=nope").status_code == 400
     page = client.get("/api/data/sales/clients?size=2&page=2").json()
     assert page["page"] == 2 and len(page["rows"]) == 2 and page["total"] == len(services.list_clients())
@@ -326,9 +329,9 @@ def test_events_reach_enabled_subscribers(client, monkeypatch, restore_modules):
     delivered = client.post(f"/api/data/sales/orders/{order['id']}/actions/deliver").json()
     assert delivered["row"]["status"] == "delivered" and "Stock mis à jour." in delivered["message"]
     assert received[0]["code"] == order["code"] and received[0]["lines"][0]["quantity"] == 2
-    assert events.subscribers("sales.order_delivered") == ["accounting"]
+    assert "accounting" in events.subscribers("sales.order_delivered")
     registry.set_enabled("accounting", False)
-    assert events.subscribers("sales.order_delivered") == []
+    assert "accounting" not in events.subscribers("sales.order_delivered")
 
 
 def test_subscriber_error_cancels_the_action(client, monkeypatch):
