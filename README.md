@@ -171,6 +171,7 @@ Pour une sauvegarde quotidienne : `0 2 * * * /usr/local/bin/caffein backup` dans
 | `migrate` | applique les migrations de la base |
 | `jobs` / `run <script>` | liste ou lance un script d'automatisation |
 | `seed --demo` | charge les données de démonstration |
+| `modules [enable\|disable M]` | liste, active ou désactive un module (`stock`, `hr`…) |
 | `health` | vérifie que le serveur répond |
 
 **Journaux** : `journalctl -u caffein -f` ou `docker compose logs -f`.

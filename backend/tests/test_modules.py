@@ -495,3 +495,16 @@ def test_module_kpis_in_views(client):
     hidden = member.post("/api/dashboards/render", json={"spec": {"widgets": [{"source": "kpi", "params": {"metric": "stock.to_reorder"}}]}}).json()
     assert hidden["widgets"] == [] and hidden["hidden"] == 1
     assert "stock.to_reorder" not in member.get("/api/dashboards").json()["catalog"][0]["description"]
+
+
+def test_cli_modules(demo, capsys, restore_modules):
+    from caffein.__main__ import main
+
+    assert main(["modules"]) == 0
+    assert "stock" in capsys.readouterr().out
+    assert main(["modules", "disable", "technical"]) == 1  # la Logistique et la Production en dépendent
+    assert "Désactivez d'abord" in capsys.readouterr().err
+    assert main(["modules", "disable", "crm"]) == 0 and not registry.is_enabled("crm")
+    assert main(["modules", "enable", "crm"]) == 0 and registry.is_enabled("crm")
+    assert main(["modules", "enable", "inconnu"]) == 1
+    assert main(["modules", "enable"]) == 2
