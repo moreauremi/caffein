@@ -200,9 +200,23 @@ ALTER TABLE job_runs ADD COLUMN actor TEXT;
 ALTER TABLE profile ADD COLUMN notif_onboarding INTEGER NOT NULL DEFAULT 1;
 """
 
+# Version 3 : vues du tableau de bord à la demande (« Mes vues »), propres à chaque utilisateur
+SCHEMA_V3 = """
+CREATE TABLE IF NOT EXISTS dashboard_views (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    spec TEXT NOT NULL DEFAULT '{}',
+    prompt TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_dashboard_views_user ON dashboard_views(user_id);
+"""
+
 # Chaque migration est appliquée une seule fois, dans l'ordre (PRAGMA user_version).
 # Pour faire évoluer le schéma : ajoutez une entrée, ne modifiez jamais une migration publiée.
-MIGRATIONS: list[tuple[int, str]] = [(1, SCHEMA_V1), (2, SCHEMA_V2)]
+MIGRATIONS: list[tuple[int, str]] = [(1, SCHEMA_V1), (2, SCHEMA_V2), (3, SCHEMA_V3)]
 SCHEMA_VERSION = MIGRATIONS[-1][0]
 
 

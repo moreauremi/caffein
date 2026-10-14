@@ -19,6 +19,7 @@ const Login = lazy(() => import('./pages/Login'))
 const PublicInvoice = lazy(() => import('./pages/PublicInvoice'))
 const Setup = lazy(() => import('./pages/Setup'))
 const Urssaf = lazy(() => import('./pages/Urssaf'))
+const Views = lazy(() => import('./pages/Views'))
 
 function NotFound() {
   const { t } = useLanguage()
@@ -43,6 +44,7 @@ export default function App() {
                   <Route path="/f/:token" element={<PublicInvoice />} />
                   <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
                     <Route index element={<Home />} />
+                    <Route path="vues" element={<Views />} />
                     <Route path="tva" element={<CaffeinDashboard />} />
                     <Route path="factures" element={<Invoices />} />
                     <Route path="documents" element={<Documents />} />

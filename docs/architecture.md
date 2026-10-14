@@ -25,6 +25,7 @@ Un seul processus, une seule base. Le planificateur tourne dans le serveur : ne 
 | `services.py` | logique métier : clients, factures et devis, documents, tableaux de bord TVA et URSSAF |
 | `fiscal.py` | taux URSSAF, périodes et échéances (valeurs indicatives à tenir à jour) |
 | `ai.py` | appels à Claude (sorties structurées) et replis heuristiques hors-ligne |
+| `dashboard.py` | « Mes vues » : catalogue de cartes, validation des descriptions, calcul des données, analyse locale, vues enregistrées ([détails](tableau-de-bord-ia.md)) |
 | `crypto.py` | chiffrement AES-256-GCM des champs sensibles |
 | `pdf_invoice.py` | rendu PDF des factures et devis (ReportLab) |
 | `emailer.py`, `email_templates.py` | envoi (SMTP, Resend ou simulation) et gabarits HTML |
@@ -51,7 +52,8 @@ Un seul processus, une seule base. Le planificateur tourne dans le serveur : ne 
 
 `profile` (l'entreprise, une seule ligne) · `users` · `sessions` · `clients` · `invoices` (factures **et** devis, champ `kind`)
 · `documents` (justificatifs classés, champs chiffrés) · `notifications` (actualités) · `emails` (journal de tous les envois)
-· `job_runs` (historique des scripts) · `declarations` (périodes URSSAF déclarées) · `alerts_sent`.
+· `job_runs` (historique des scripts) · `declarations` (périodes URSSAF déclarées) · `alerts_sent`
+· `dashboard_views` (vues enregistrées de « Mes vues », propres à chaque utilisateur).
 
 **Ajouter une colonne ou une table** : ajoutez une entrée `(3, "ALTER TABLE …")` à la fin de `MIGRATIONS` dans `db.py`.
 Ne modifiez jamais une migration déjà publiée, les instances existantes l'ont déjà appliquée.

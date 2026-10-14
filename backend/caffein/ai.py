@@ -679,3 +679,91 @@ def newsletter_to_notification_offline(email_text: str) -> dict:
 
 def due_date_from(issue: date, days: int | None, default_days: int) -> date:
     return issue + timedelta(days=days if days is not None else default_days)
+
+
+# ═════════════════════════════════════════════════════════════════════════
+# 5. Tableau de bord à la demande (« Mes vues »)
+#    « Montre-moi mon CA par mois et mes factures impayées »
+#    L'IA choisit des cartes dans un catalogue fermé : elle ne voit jamais les données.
+# ═════════════════════════════════════════════════════════════════════════
+def _dashboard_schema() -> dict:
+    from .dashboard import METRICS, PERIODS, SOURCES, VISUALS
+
+    params = {
+        "type": "object",
+        "properties": {
+            "metric": _nullable({"type": "string", "enum": list(METRICS)}),
+            "period": _nullable({"type": "string", "enum": list(PERIODS)}),
+            "limit": _nullable({"type": "integer"}),
+            "only_overdue": _nullable({"type": "boolean"}),
+        },
+        "required": ["metric", "period", "limit", "only_overdue"],
+        "additionalProperties": False,
+    }
+    widget = {
+        "type": "object",
+        "properties": {
+            "source": {"type": "string", "enum": list(SOURCES)},
+            "visual": {"type": "string", "enum": list(VISUALS)},
+            "title": {"type": "string"},
+            "params": params,
+        },
+        "required": ["source", "visual", "title", "params"],
+        "additionalProperties": False,
+    }
+    return {
+        "type": "object",
+        "properties": {
+            "understood": {"type": "boolean"},
+            "reply": {"type": "string"},
+            "title": {"type": "string"},
+            "widgets": {"type": "array", "items": widget},
+        },
+        "required": ["understood", "reply", "title", "widgets"],
+        "additionalProperties": False,
+    }
+
+
+def _dashboard_prompt(catalog: list[dict], current: dict, ref: date, language: str) -> str:
+    sources = "\n".join(f"- {c['source']} (visuels : {', '.join(c['visuals'])}) : {c['description']}" for c in catalog)
+    lang = "anglais" if language == "en" else "français"
+    return f"""Tu composes le tableau de bord de Caffein, le logiciel de gestion d'un freelance français.
+L'utilisateur dit ce qu'il veut voir ; tu renvoies la vue complète qui en résulte, sous forme de cartes
+choisies UNIQUEMENT dans ce catalogue :
+{sources}
+
+Règles :
+- Pars de la vue actuelle. « Ajoute… » garde les cartes existantes ; « enlève/retire… » les retire ;
+  une nouvelle demande sans « ajoute » remplace la vue ; « efface tout » la vide.
+- params : renseigne seulement ceux de la source (les autres à null). period : month, quarter, year,
+  last_6_months ou last_12_months. limit : nombre de lignes (1 à 20).
+- title : titre court de la carte, en {lang}. Le title de la vue peut rester vide.
+- 8 cartes au plus. Pas de doublon.
+- Cette page ne fait qu'afficher. Si la demande veut modifier des données (une facture, un client…)
+  ou ne correspond à aucune source, renvoie understood = false et la vue actuelle inchangée.
+- reply : une phrase courte, en {lang}, qui dit ce que tu as fait (ou pourquoi c'est impossible).
+
+Nous sommes le {ref.isoformat()}. Vue actuelle :
+{json.dumps(current, ensure_ascii=False)}"""
+
+
+def compose_dashboard(text: str, current: dict, ref: date, language: str = "fr") -> dict:
+    """Demande en langage naturel + vue actuelle → {spec, understood, reply|message, composed_by}.
+
+    La description renvoyée n'est pas encore validée : l'appelant la passe à dashboard.validate_spec()."""
+    from . import dashboard
+
+    current = dashboard.validate_spec(current)
+    try:
+        system = _dashboard_prompt(dashboard.catalog(), current, ref, language)
+        data = _json_call(system, text, _dashboard_schema(), max_tokens=4000)
+        understood = bool(data.get("understood"))
+        return {
+            "spec": {"title": data.get("title", ""), "widgets": data.get("widgets", [])} if understood else current,
+            "understood": understood, "reply": str(data.get("reply") or "")[:300], "message": None, "composed_by": "claude",
+        }
+    except AIUnavailable as exc:
+        if config.AI_ENABLED:
+            log.warning("Composition Claude indisponible (%s), analyse locale", exc)
+        result = dashboard.compose_offline(text, current)
+        return {**result, "reply": None, "composed_by": "heuristique"}

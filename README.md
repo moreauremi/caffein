@@ -24,6 +24,9 @@ Logiciel libre, auto-hébergé sur votre serveur Linux ou dans un conteneur.
   une fois par semaine au plus, avec une notification à chaque envoi.
 - **Justificatifs classés tout seuls.** Déposez une facture fournisseur (PDF ou photo) : fournisseur, montants, catégorie et échéance
   sont extraits, chiffrés en AES-256-GCM, puis le fichier est renommé et rangé par fournisseur.
+- **Mes vues : un tableau de bord à la demande.** « Montre-moi mon chiffre d'affaires par mois et mes factures impayées » :
+  la page se compose, « ajoute mes dépenses » ou « enlève les impayés » la modifient, et une vue enregistrée revient en un clic.
+  L'IA choisit des cartes dans un catalogue ; elle ne voit jamais vos chiffres. Voir [docs/tableau-de-bord-ia.md](docs/tableau-de-bord-ia.md).
 - **TVA.** TVA collectée (à l'encaissement), TVA déductible, balance à reverser, échéance et évolution sur l'année.
 - **URSSAF.** Chiffre d'affaires encaissé, cotisations selon votre activité, déclarations mensuelles ou trimestrielles,
   suivi du plafond micro-entreprise et du seuil de franchise de TVA.

@@ -4,6 +4,14 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/). Ver
 
 ## [Non publié]
 
+### Ajouté
+- **Mes vues** (`/vues`) : un tableau de bord qui se compose en langage naturel (« mon chiffre d'affaires par mois et mes
+  impayés », « ajoute mes dépenses », « enlève les impayés »). L'IA choisit des cartes dans un catalogue fermé (chiffres clés,
+  CA par mois ou par client, impayés, dépenses, TVA, devis, échéances) et ne reçoit jamais les données ; sans clé, une
+  analyse locale prend le relais. Les vues s'enregistrent par utilisateur et se rechargent sans IA. Lecture seule : une
+  demande de modification est refusée. Voir `docs/tableau-de-bord-ia.md`.
+- Migration 3 : table `dashboard_views`.
+
 ## [2.0.0] — 2026-10-07
 
 Première version libre et auto-hébergeable.

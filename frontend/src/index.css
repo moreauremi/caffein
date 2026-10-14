@@ -476,3 +476,32 @@ img, svg { display: block; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; }
 }
+
+/* ── Mes vues (tableau de bord à la demande) ─────────────────────────── */
+.ask { padding: 16px; }
+.ask-row { display: flex; align-items: center; gap: 12px; }
+.ask-icon { color: var(--accent); flex: none; }
+.ask-input {
+  flex: 1; min-width: 0; height: 46px; border: 0; background: transparent; color: var(--fg);
+  font: inherit; font-size: 17px; outline: none;
+}
+.ask-input::placeholder { color: var(--subtle); }
+.ask:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.ask-examples { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+.ask-feedback { margin-top: 14px; }
+.views-bar { margin: 22px 0 14px; gap: 12px; }
+.widget-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 16px; align-items: start; }
+.widget { position: relative; grid-column: span 6; animation: rise 0.35s ease both; min-width: 0; }
+.widget-stat { grid-column: span 3; }
+.widget-stat .card { height: 100%; }
+.widget-stat .widget-remove { position: absolute; top: 10px; right: 10px; z-index: 1; }
+.widget-remove { opacity: 0.55; }
+.widget:hover .widget-remove, .widget-remove:focus-visible { opacity: 1; }
+.widget .card-title { margin: 0; }
+.views-note { margin-top: 18px; }
+@media (max-width: 1020px) { .widget-stat { grid-column: span 6; } }
+@media (max-width: 720px) {
+  .widget, .widget-stat { grid-column: span 12; }
+  .ask-row { flex-wrap: wrap; }
+  .ask-row .btn { width: 100%; justify-content: center; }
+}

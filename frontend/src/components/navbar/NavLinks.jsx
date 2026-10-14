@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { NavLink } from 'react-router-dom'
-import { Bot, FileStack, Home, Landmark, Percent, ReceiptText } from 'lucide-react'
+import { Bot, FileStack, Home, Landmark, Percent, ReceiptText, Sparkles } from 'lucide-react'
 import { useLanguage } from '../../context/LanguageContext'
 
 const LINKS = [
   { to: '/', key: 'nav.home', icon: Home, end: true },
+  { to: '/vues', key: 'nav.views', icon: Sparkles },
   { to: '/tva', key: 'nav.tva', icon: Percent },
   { to: '/factures', key: 'nav.invoices', icon: ReceiptText },
   { to: '/documents', key: 'nav.documents', icon: FileStack },

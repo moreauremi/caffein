@@ -20,7 +20,7 @@ from urllib.parse import urlparse
 from fastapi import APIRouter, Body, Depends, FastAPI, File, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 
-from .. import __version__, ai, auth, config, db, emailer, services
+from .. import __version__, ai, auth, config, dashboard, db, emailer, services
 from ..jobs import JOBS, describe_jobs, list_runs, run_job
 from ..jobs.setup_drive import tree as drive_tree
 from ..utils import today, unique_path
@@ -558,6 +558,54 @@ def notifications_ingest(payload: dict = Body(...), user: dict = Depends(current
         raise ValueError("Collez le contenu de la newsletter.")
     run = run_job("newsletter_notifications", trigger="manual", actor=user["email"], text=text)
     return {"run": run, "notifications": services.list_notifications()}
+
+
+# ── Tableau de bord à la demande (« Mes vues ») ──────────────────────────
+@api.post("/dashboards/compose")
+def dashboard_compose(payload: dict = Body(...)) -> dict:
+    """Demande en langage naturel + vue actuelle → nouvelle vue, avec ses données (lecture seule)."""
+    text = str(payload.get("text", "")).strip()
+    if len(text) < 3:
+        raise ValueError("Dites ce que vous voulez voir.")
+    if len(text) > dashboard.MAX_PROMPT:
+        raise ValueError(f"Demande trop longue ({dashboard.MAX_PROMPT} caractères au plus).")
+    language = "en" if payload.get("language") == "en" else "fr"
+    result = ai.compose_dashboard(text, payload.get("spec") or {}, today(), language)
+    return {"view": dashboard.render(result["spec"]), "understood": result["understood"], "reply": result.get("reply"),
+            "message": result.get("message"), "composed_by": result["composed_by"]}
+
+
+@api.post("/dashboards/render")
+def dashboard_render(payload: dict = Body(...)) -> dict:
+    """Vue → données, sans IA (vue enregistrée, carte retirée…)."""
+    return dashboard.render(payload.get("spec") or {})
+
+
+@api.get("/dashboards")
+def dashboard_views(user: dict = Depends(current_user)) -> dict:
+    return {"views": dashboard.list_views(user["id"]), "catalog": dashboard.catalog(), "ai": ai.status()}
+
+
+@api.post("/dashboards", status_code=201)
+def dashboard_create(payload: dict = Body(...), user: dict = Depends(current_user)) -> dict:
+    return dashboard.create_view(user["id"], payload)
+
+
+@api.get("/dashboards/{view_id}")
+def dashboard_get(view_id: int, user: dict = Depends(current_user)) -> dict:
+    view = dashboard.get_view(user["id"], view_id)
+    return {**view, "view": dashboard.render(view["spec"])}
+
+
+@api.put("/dashboards/{view_id}")
+def dashboard_update(view_id: int, payload: dict = Body(...), user: dict = Depends(current_user)) -> dict:
+    return dashboard.update_view(user["id"], view_id, payload)
+
+
+@api.delete("/dashboards/{view_id}", status_code=204)
+def dashboard_delete(view_id: int, user: dict = Depends(current_user)) -> Response:
+    dashboard.delete_view(user["id"], view_id)
+    return Response(status_code=204)
 
 
 # ── Automatisations & emails ─────────────────────────────────────────────
