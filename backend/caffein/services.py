@@ -3,21 +3,15 @@
 
 from __future__ import annotations
 
+import math
 import secrets
+import sqlite3
 from datetime import date, timedelta
 from pathlib import Path
 
 from . import config, crypto, db, fiscal
+from .core.errors import Conflict, NotFound  # noqa: F401 (services.NotFound et services.Conflict restent valables)
 from .utils import add_months, month_end, parse_date, slugify_name, today
-
-
-class NotFound(Exception):
-    pass
-
-
-class Conflict(Exception):
-    pass
-
 
 # ═════════════════════════════════════════════════════════════════════════
 # Profil
@@ -107,7 +101,10 @@ def delete_client(client_id: int) -> None:
     used = db.fetch_one("SELECT COUNT(*) AS n FROM invoices WHERE client_id = ? AND status != 'draft'", (client_id,))
     if used and used["n"]:
         raise Conflict("Ce client a des factures émises : il ne peut pas être supprimé.")
-    db.execute("DELETE FROM clients WHERE id = ?", (client_id,))
+    try:
+        db.execute("DELETE FROM clients WHERE id = ?", (client_id,))
+    except sqlite3.IntegrityError as exc:  # commandes clients ou autres fiches liées
+        raise Conflict("Ce client est utilisé ailleurs (commandes…) : il ne peut pas être supprimé.") from exc
 
 
 def find_or_create_client(name: str, contact: str = "", email: str | None = None) -> dict | None:
@@ -128,23 +125,111 @@ INVOICE_STATUSES = {"invoice": {"draft", "pending", "paid", "cancelled"},
 
 
 def compute_totals(items: list[dict], vat_exempt: bool, vat_rate: float) -> tuple[float, float, float]:
-    subtotal = round(sum(round(float(i.get("quantity") or 0) * float(i.get("unit_price") or 0), 2) for i in items), 2)
+    subtotal = round(sum(line_amount(i) for i in items), 2)
     vat = 0.0 if vat_exempt else round(subtotal * float(vat_rate or 0), 2)
     return subtotal, vat, round(subtotal + vat, 2)
 
 
-def _clean_items(items: list[dict]) -> list[dict]:
+def line_amount(item: dict) -> float:
+    return round(float(item.get("quantity") or 0) * float(item.get("unit_price") or 0), 2)
+
+
+def _number(value: object, label: str) -> float:
+    if isinstance(value, bool):
+        raise ValueError(f"{label} : nombre attendu.")
+    try:
+        number = float(str(value).replace(",", ".").replace(" ", "")) if value not in (None, "") else 0.0
+    except (TypeError, ValueError):
+        raise ValueError(f"{label} : nombre attendu.") from None
+    if not math.isfinite(number) or abs(number) > 1e9:
+        raise ValueError(f"{label} : nombre hors limites.")
+    return number
+
+
+def _clean_items(items: object) -> list[dict]:
+    """Lignes reçues → lignes à enregistrer (description, quantité, prix unitaire, article facultatif)."""
+    if items is None:
+        return []
+    if not isinstance(items, list):
+        raise ValueError("Lignes invalides.")
+    if len(items) > 200:
+        raise ValueError("200 lignes au plus.")
     clean = []
-    for item in items or []:
+    for item in items:
+        if not isinstance(item, dict):
+            raise ValueError("Lignes invalides.")
         desc = str(item.get("description") or "").strip()
         if not desc:
             continue
-        clean.append({
+        line = {
             "description": desc[:300],
-            "quantity": round(float(item.get("quantity") or 0), 3),
-            "unit_price": round(float(item.get("unit_price") or 0), 2),
-        })
+            "quantity": round(_number(item.get("quantity"), "Quantité"), 3),
+            "unit_price": round(_number(item.get("unit_price"), "Prix unitaire"), 2),
+            "article_id": None,
+        }
+        article = item.get("article_id")
+        if article not in (None, "") and not isinstance(article, bool):
+            try:
+                line["article_id"] = int(article)
+            except (TypeError, ValueError):
+                raise ValueError("Article invalide.") from None
+        clean.append(line)
     return clean
+
+
+def invoice_lines(invoice_ids: list[int] | None = None, kind: str | None = None) -> dict[int, list[dict]]:
+    """Lignes des factures et devis (table invoice_lines), regroupées par document, dans l'ordre."""
+    sql = ("SELECT l.invoice_id, l.article_id, l.description, l.quantity, l.unit_price FROM invoice_lines l "
+           "JOIN invoices i ON i.id = l.invoice_id")
+    params: tuple = ()
+    if invoice_ids is not None:
+        if not invoice_ids:
+            return {}
+        sql += f" WHERE l.invoice_id IN ({', '.join('?' for _ in invoice_ids)})"
+        params = tuple(invoice_ids)
+    elif kind:
+        sql += " WHERE i.kind = ?"
+        params = (kind,)
+    out: dict[int, list[dict]] = {}
+    for row in db.fetch_all(sql + " ORDER BY l.invoice_id, l.position, l.id", params):
+        invoice_id = row.pop("invoice_id")
+        row["amount"] = line_amount(row)
+        out.setdefault(invoice_id, []).append(row)
+    return out
+
+
+def _write_lines(conn, invoice_id: int, items: list[dict]) -> None:
+    conn.execute("DELETE FROM invoice_lines WHERE invoice_id = ?", (invoice_id,))
+    conn.executemany(
+        "INSERT INTO invoice_lines (invoice_id, position, article_id, description, quantity, unit_price) VALUES (?, ?, ?, ?, ?, ?)",
+        [(invoice_id, position, i.get("article_id"), i["description"], i["quantity"], i["unit_price"])
+         for position, i in enumerate(items)])
+
+
+def preview_totals(data: dict) -> dict:
+    """Totaux d'un document en cours de saisie, calculés par le serveur (l'interface ne fait qu'afficher)."""
+    profile = get_profile()
+    items = _clean_items(data.get("items"))
+    vat_exempt = bool(data.get("vat_exempt", profile["vat_exempt"]))
+    vat_rate = _number(data.get("vat_rate", profile["default_vat_rate"]), "Taux de TVA")
+    subtotal, vat_amount, total = compute_totals(items, vat_exempt, vat_rate)
+    return {"subtotal": subtotal, "vat_amount": vat_amount, "total": total,
+            "lines": [line_amount(i) for i in _clean_items_keep_positions(data.get("items"))]}
+
+
+def _clean_items_keep_positions(items: object) -> list[dict]:
+    """Comme _clean_items, mais une ligne sans description compte pour 0 (aperçu ligne à ligne)."""
+    out = []
+    for item in items if isinstance(items, list) else []:
+        if not isinstance(item, dict):
+            out.append({})
+            continue
+        try:
+            out.append({"quantity": _number(item.get("quantity"), "Quantité"),
+                        "unit_price": _number(item.get("unit_price"), "Prix unitaire")})
+        except ValueError:
+            out.append({})
+    return out
 
 
 def portal_url(invoice: dict) -> str:
@@ -160,9 +245,9 @@ def display_status(inv: dict, ref: date | None = None) -> str:
     return inv["status"]
 
 
-def _hydrate(inv: dict, ref: date | None = None) -> dict:
+def _hydrate(inv: dict, ref: date | None = None, lines: dict[int, list[dict]] | None = None) -> dict:
     ref = ref or today()
-    inv["items"] = db.loads(inv.get("items"), [])
+    inv["items"] = (lines if lines is not None else invoice_lines([inv["id"]])).get(inv["id"], [])
     inv["vat_exempt"] = bool(inv["vat_exempt"])
     inv["display_status"] = display_status(inv, ref)
     due = parse_date(inv.get("due_date"))
@@ -181,7 +266,8 @@ def list_invoices(kind: str | None = None) -> list[dict]:
         params = (kind,)
     sql += " ORDER BY COALESCE(i.issued_at, i.created_at) DESC, i.id DESC"
     ref = today()
-    return [_hydrate(row, ref) for row in db.fetch_all(sql, params)]
+    lines = invoice_lines(kind=kind)
+    return [_hydrate(row, ref, lines) for row in db.fetch_all(sql, params)]
 
 
 def get_invoice(invoice_id: int) -> dict:
@@ -206,14 +292,17 @@ def get_invoice_by_token(token: str) -> dict:
     return inv
 
 
-def _invoice_values(data: dict, profile: dict, existing: dict | None = None) -> dict:
+def _invoice_values(data: dict, profile: dict, existing: dict | None = None) -> tuple[dict, list[dict] | None]:
+    """Valeurs de la facture et lignes à enregistrer (None : lignes inchangées)."""
     base = existing or {}
     vat_exempt = bool(data.get("vat_exempt", base.get("vat_exempt", profile["vat_exempt"])))
-    vat_rate = float(data.get("vat_rate", base.get("vat_rate", profile["default_vat_rate"])) or 0)
-    items = _clean_items(data["items"]) if "items" in data else base.get("items", [])
-    subtotal, vat_amount, total = compute_totals(items, vat_exempt, vat_rate)
+    vat_rate = _number(data.get("vat_rate", base.get("vat_rate", profile["default_vat_rate"])), "Taux de TVA")
+    if not 0 <= vat_rate <= 1:
+        raise ValueError("Taux de TVA invalide.")
+    items = _clean_items(data["items"]) if "items" in data else None
+    subtotal, vat_amount, total = compute_totals(items if items is not None else base.get("items", []), vat_exempt, vat_rate)
     values = {
-        "items": db.dumps(items), "vat_exempt": int(vat_exempt), "vat_rate": vat_rate,
+        "vat_exempt": int(vat_exempt), "vat_rate": vat_rate,
         "subtotal": subtotal, "vat_amount": vat_amount, "total": total, "updated_at": db.now_iso(),
     }
     for key in ("title", "notes", "payment_conditions"):
@@ -228,7 +317,7 @@ def _invoice_values(data: dict, profile: dict, existing: dict | None = None) -> 
         if cid not in (None, "") and not get_client(int(cid)):
             raise ValueError("Client introuvable")
         values["client_id"] = int(cid) if cid not in (None, "") else None
-    return values
+    return values, items
 
 
 def create_invoice(data: dict) -> dict:
@@ -236,7 +325,7 @@ def create_invoice(data: dict) -> dict:
     kind = data.get("kind", "invoice")
     if kind not in INVOICE_STATUSES:
         raise ValueError("Type de document inconnu")
-    values = _invoice_values(data, profile)
+    values, items = _invoice_values(data, profile)
     if not values.get("payment_conditions") and kind == "invoice":
         values["payment_conditions"] = f"Virement bancaire à {profile['payment_terms_days']} jours"
     values.update({
@@ -244,14 +333,24 @@ def create_invoice(data: dict) -> dict:
         "source_text": str(data.get("source_text") or ""), "source_quote_id": data.get("source_quote_id"),
         "created_at": db.now_iso(),
     })
-    return get_invoice(db.insert("invoices", values))
+    with db.connect() as conn:  # la facture et ses lignes dans la même transaction
+        cols = ", ".join(values)
+        invoice_id = conn.execute(f"INSERT INTO invoices ({cols}) VALUES ({', '.join(':' + k for k in values)})",
+                                  values).lastrowid
+        _write_lines(conn, invoice_id, items or [])
+    return get_invoice(invoice_id)
 
 
 def update_invoice(invoice_id: int, data: dict) -> dict:
     inv = get_invoice(invoice_id)
     if inv["status"] != "draft":
         raise Conflict("Seuls les brouillons sont modifiables. Une facture émise ne peut plus être changée.")
-    db.update("invoices", invoice_id, _invoice_values(data, get_profile(), inv))
+    values, items = _invoice_values(data, get_profile(), inv)
+    with db.connect() as conn:
+        conn.execute(f"UPDATE invoices SET {', '.join(f'{k} = :{k}' for k in values)} WHERE id = :_id",
+                     {**values, "_id": invoice_id})
+        if items is not None:
+            _write_lines(conn, invoice_id, items)
     return get_invoice(invoice_id)
 
 
@@ -353,7 +452,8 @@ def convert_quote(invoice_id: int) -> dict:
     if quote["kind"] != "quote" or quote["status"] not in ("pending", "accepted"):
         raise Conflict("Seul un devis émis ou accepté peut être transformé en facture.")
     invoice = create_invoice({
-        "kind": "invoice", "client_id": quote["client_id"], "title": quote["title"], "items": quote["items"],
+        "kind": "invoice", "client_id": quote["client_id"], "title": quote["title"],
+        "items": [{k: line[k] for k in ("description", "quantity", "unit_price", "article_id")} for line in quote["items"]],
         "vat_exempt": quote["vat_exempt"], "vat_rate": quote["vat_rate"], "delivery_date": quote.get("delivery_date"),
         "notes": f"Suite au devis n° {quote['number']}.", "source_quote_id": invoice_id,
     })

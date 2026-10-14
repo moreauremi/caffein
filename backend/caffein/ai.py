@@ -752,7 +752,8 @@ Règles :
 Nous sommes le {ref.isoformat()}."""
 
 
-def compose_dashboard(text: str, current: dict, ref: date, language: str = "fr", allow_ai: bool = True) -> dict:
+def compose_dashboard(text: str, current: dict, ref: date, language: str = "fr", allow_ai: bool = True,
+                      levels: dict[str, int] | None = None) -> dict:
     """Demande en langage naturel + vue actuelle → {spec, understood, reply, message, composed_by}.
 
     La description renvoyée n'est pas encore validée : l'appelant la passe à dashboard.validate_spec().
@@ -766,7 +767,7 @@ def compose_dashboard(text: str, current: dict, ref: date, language: str = "fr",
         if not dashboard._ai_slots.acquire(blocking=False):
             raise AIUnavailable("Trop d'appels simultanés : analyse locale")
         try:
-            system = _dashboard_prompt(dashboard.catalog(), ref, language)
+            system = _dashboard_prompt(dashboard.catalog(levels), ref, language)
             content = (f"<vue_actuelle>{json.dumps(current, ensure_ascii=False)}</vue_actuelle>\n"
                        f"<demande>{text}</demande>")
             data = _json_call(system, content, _dashboard_schema(), max_tokens=4000)

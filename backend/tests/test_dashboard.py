@@ -375,7 +375,7 @@ def test_migration_from_v2(tmp_path, monkeypatch):
     with sqlite3.connect(tmp_path / "v2.db") as conn:
         conn.executescript(f"{db.SCHEMA_V1}\n{db.SCHEMA_V2}\nPRAGMA user_version = 2;")
     db.init_db()
-    assert db.schema_version() == 3
+    assert db.schema_version() == db.SCHEMA_VERSION
     assert db.fetch_all("SELECT * FROM dashboard_views") == []
 
 

@@ -214,9 +214,100 @@ CREATE TABLE IF NOT EXISTS dashboard_views (
 CREATE INDEX IF NOT EXISTS idx_dashboard_views_user ON dashboard_views(user_id);
 """
 
+# Version 4 : architecture modulaire (docs/modules.md).
+# - modules : activation de chaque module ; schema_migrations : versions appliquées des modules ;
+# - rôles, droits par module et dérogations par utilisateur ;
+# - lignes des factures et devis dans une table (elles étaient dans le champ JSON invoices.items).
+SCHEMA_V4 = """
+CREATE TABLE IF NOT EXISTS modules (
+    key TEXT PRIMARY KEY,
+    enabled INTEGER NOT NULL DEFAULT 0,
+    settings TEXT NOT NULL DEFAULT '{}',
+    updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS schema_migrations (
+    module TEXT NOT NULL,
+    version INTEGER NOT NULL,
+    applied_at TEXT NOT NULL,
+    PRIMARY KEY (module, version)
+);
+
+CREATE TABLE IF NOT EXISTS roles (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    key TEXT UNIQUE,
+    name TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    description TEXT NOT NULL DEFAULT '',
+    default_level INTEGER NOT NULL DEFAULT 0 CHECK (default_level BETWEEN 0 AND 3),
+    is_system INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS role_permissions (
+    role_id INTEGER NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
+    module TEXT NOT NULL,
+    level INTEGER NOT NULL CHECK (level BETWEEN 0 AND 3),
+    PRIMARY KEY (role_id, module)
+);
+
+CREATE TABLE IF NOT EXISTS user_permissions (
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    module TEXT NOT NULL,
+    level INTEGER NOT NULL CHECK (level BETWEEN 0 AND 3),
+    PRIMARY KEY (user_id, module)
+);
+
+ALTER TABLE users ADD COLUMN role_id INTEGER REFERENCES roles(id) ON DELETE SET NULL;
+
+-- Rôles fournis. « Équipe » reprend les droits des membres d'avant les modules (tout, sauf les paramètres).
+INSERT INTO roles (key, name, description, default_level, is_system, created_at) VALUES
+    ('team', 'Équipe (accès complet)', 'Lecture et écriture sur tous les modules actifs.', 2, 1, strftime('%Y-%m-%dT%H:%M:%S', 'now')),
+    ('readonly', 'Lecture seule', 'Consulte tous les modules actifs, sans rien modifier.', 1, 1, strftime('%Y-%m-%dT%H:%M:%S', 'now')),
+    ('sales', 'Commercial', 'Ventes et CRM ; consulte les articles et les stocks.', 0, 0, strftime('%Y-%m-%dT%H:%M:%S', 'now')),
+    ('buyer', 'Acheteur', 'Achats ; consulte les articles et les stocks.', 0, 0, strftime('%Y-%m-%dT%H:%M:%S', 'now')),
+    ('production', 'Production', 'Production, données techniques et stocks.', 0, 0, strftime('%Y-%m-%dT%H:%M:%S', 'now')),
+    ('hr', 'Ressources humaines', 'RH, y compris les données sensibles (salaires).', 0, 0, strftime('%Y-%m-%dT%H:%M:%S', 'now')),
+    ('accountant', 'Comptable', 'Comptabilité ; consulte les ventes et les achats.', 0, 0, strftime('%Y-%m-%dT%H:%M:%S', 'now'));
+
+INSERT INTO role_permissions (role_id, module, level)
+    SELECT r.id, p.module, p.level FROM roles r JOIN (
+        SELECT 'sales' AS role, 'sales' AS module, 2 AS level UNION ALL SELECT 'sales', 'crm', 2
+        UNION ALL SELECT 'sales', 'technical', 1 UNION ALL SELECT 'sales', 'stock', 1
+        UNION ALL SELECT 'buyer', 'purchases', 2 UNION ALL SELECT 'buyer', 'technical', 1 UNION ALL SELECT 'buyer', 'stock', 1
+        UNION ALL SELECT 'production', 'production', 2 UNION ALL SELECT 'production', 'technical', 2
+        UNION ALL SELECT 'production', 'stock', 2
+        UNION ALL SELECT 'hr', 'hr', 3
+        UNION ALL SELECT 'accountant', 'accounting', 2 UNION ALL SELECT 'accountant', 'sales', 1
+        UNION ALL SELECT 'accountant', 'purchases', 1
+    ) p ON p.role = r.key;
+
+UPDATE users SET role_id = (SELECT id FROM roles WHERE key = 'team') WHERE role = 'member';
+
+-- Lignes des factures et devis. article_id : article des Données techniques, facultatif (sans clé
+-- étrangère : le module peut être absent ou désactivé).
+CREATE TABLE IF NOT EXISTS invoice_lines (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    invoice_id INTEGER NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
+    position INTEGER NOT NULL DEFAULT 0,
+    article_id INTEGER,
+    description TEXT NOT NULL DEFAULT '',
+    quantity REAL NOT NULL DEFAULT 1,
+    unit_price REAL NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_invoice_lines_invoice ON invoice_lines(invoice_id, position);
+
+INSERT INTO invoice_lines (invoice_id, position, description, quantity, unit_price)
+    SELECT i.id, CAST(j.key AS INTEGER), COALESCE(json_extract(j.value, '$.description'), ''),
+           COALESCE(json_extract(j.value, '$.quantity'), 1), COALESCE(json_extract(j.value, '$.unit_price'), 0)
+    FROM invoices i, json_each(i.items) j
+    WHERE json_valid(i.items) AND json_type(i.items) = 'array';
+UPDATE invoices SET items = '[]';
+"""
+
 # Chaque migration est appliquée une seule fois, dans l'ordre (PRAGMA user_version).
 # Pour faire évoluer le schéma : ajoutez une entrée, ne modifiez jamais une migration publiée.
-MIGRATIONS: list[tuple[int, str]] = [(1, SCHEMA_V1), (2, SCHEMA_V2), (3, SCHEMA_V3)]
+# Les tables des modules ont leurs propres migrations (core/migrations.py).
+MIGRATIONS: list[tuple[int, str]] = [(1, SCHEMA_V1), (2, SCHEMA_V2), (3, SCHEMA_V3), (4, SCHEMA_V4)]
 SCHEMA_VERSION = MIGRATIONS[-1][0]
 
 
@@ -259,6 +350,10 @@ def init_db() -> None:
             if version <= current:
                 continue
             conn.executescript(f"BEGIN;\n{script}\nPRAGMA user_version = {version};\nCOMMIT;")
+    # Puis les tables des modules (import local : les modules importent db)
+    from .core import migrations
+
+    migrations.apply_all()
 
 
 def fetch_all(sql: str, params: tuple | dict = ()) -> list[dict[str, Any]]:

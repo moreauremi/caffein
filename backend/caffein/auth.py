@@ -54,16 +54,33 @@ def check_password_strength(password: str) -> None:
 
 
 # ── Utilisateurs ─────────────────────────────────────────────────────────
-PUBLIC_FIELDS = "id, email, full_name, role, active, is_demo, last_login_at, created_at"
+PUBLIC_FIELDS = "id, email, full_name, role, role_id, active, is_demo, last_login_at, created_at"
 
 
 def _public(row: dict | None) -> dict | None:
     if row is None:
         return None
-    row = {k: row[k] for k in ("id", "email", "full_name", "role", "active", "is_demo", "last_login_at", "created_at")}
+    row = {k: row[k] for k in ("id", "email", "full_name", "role", "role_id", "active", "is_demo", "last_login_at",
+                               "created_at")}
     row["active"] = bool(row["active"])
     row["is_demo"] = bool(row["is_demo"])
     return row
+
+
+def _clean_role_id(value: object) -> int | None:
+    """Rôle d'un membre (droits par module, voir core/permissions.py). Vide : le rôle « Équipe »."""
+    if value in (None, ""):
+        row = db.fetch_one("SELECT id FROM roles WHERE key = 'team'")
+        return row["id"] if row else None
+    if isinstance(value, bool):
+        raise ValueError("Rôle inconnu.")
+    try:
+        role_id = int(value)
+    except (TypeError, ValueError):
+        raise ValueError("Rôle inconnu.") from None
+    if not db.fetch_one("SELECT id FROM roles WHERE id = ?", (role_id,)):
+        raise ValueError("Rôle inconnu.")
+    return role_id
 
 
 def count_users() -> int:
@@ -89,7 +106,8 @@ def _clean_email(email: str) -> str:
     return email
 
 
-def create_user(email: str, password: str, full_name: str = "", role: str = "member", is_demo: bool = False) -> dict:
+def create_user(email: str, password: str, full_name: str = "", role: str = "member", is_demo: bool = False,
+                role_id: object = None) -> dict:
     email = _clean_email(email)
     if role not in ROLES:
         raise ValueError("Rôle inconnu.")
@@ -98,7 +116,7 @@ def create_user(email: str, password: str, full_name: str = "", role: str = "mem
         raise ValueError("Un compte existe déjà avec cette adresse email.")
     user_id = db.insert("users", {
         "email": email, "full_name": (full_name or "").strip()[:120], "password_hash": hash_password(password),
-        "role": role, "active": 1, "is_demo": int(is_demo), "created_at": db.now_iso(),
+        "role": role, "role_id": _clean_role_id(role_id), "active": 1, "is_demo": int(is_demo), "created_at": db.now_iso(),
     })
     return get_user(user_id)
 
@@ -120,6 +138,8 @@ def update_user(user_id: int, values: dict, acting_user: dict | None = None) -> 
         if values["role"] not in ROLES:
             raise ValueError("Rôle inconnu.")
         clean["role"] = values["role"]
+    if "role_id" in values or (clean.get("role") == "member" and not user.get("role_id")):
+        clean["role_id"] = _clean_role_id(values.get("role_id"))
     if "active" in values:
         clean["active"] = int(bool(values["active"]))
     # On ne peut pas retirer le dernier administrateur actif

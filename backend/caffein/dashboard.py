@@ -72,6 +72,28 @@ CATALOG: dict[str, dict] = {
 }
 SOURCES = tuple(CATALOG)
 
+# Module de chaque source et de chaque chiffre clé : une carte ne s'affiche que si l'utilisateur
+# peut consulter ce module (et qu'il est actif). Voir docs/modules.md.
+SOURCE_MODULES = {
+    "revenue_by_month": "sales", "revenue_by_client": "sales", "unpaid_invoices": "sales", "pending_quotes": "sales",
+    "expenses_by_category": "accounting", "vat_by_month": "accounting", "deadlines": "accounting",
+}
+METRIC_MODULES = {
+    "to_collect": "sales", "overdue_total": "sales", "paid_month": "sales", "revenue_year": "sales",
+    "quotes_pending": "sales", "vat_balance": "accounting", "time_saved": "home",
+}
+
+
+def widget_module(widget: dict) -> str:
+    if widget["source"] == "kpi":
+        return METRIC_MODULES[widget["params"]["metric"]]
+    return SOURCE_MODULES[widget["source"]]
+
+
+def allowed(widget: dict, levels: dict[str, int] | None) -> bool:
+    """`levels` : niveaux de l'utilisateur par module (None : pas de filtre, usage interne et tests)."""
+    return levels is None or levels.get(widget_module(widget), 0) >= 1
+
 
 # ═════════════════════════════════════════════════════════════════════════
 # Validation d'une description (quelle qu'en soit l'origine : IA, analyse locale, navigateur)
@@ -271,12 +293,14 @@ _RESOLVERS = {
 }
 
 
-def render(spec: object) -> dict:
-    """Description → description validée + données de chaque carte."""
+def render(spec: object, levels: dict[str, int] | None = None) -> dict:
+    """Description → description validée + données de chaque carte. Les cartes d'un module que
+    l'utilisateur ne peut pas consulter sont retirées (`hidden` en donne le nombre)."""
     clean = validate_spec(spec)
     ref = today()
-    widgets = [{**w, "data": _RESOLVERS[w["source"]](w["params"], ref)} for w in clean["widgets"]]
-    return {"title": clean["title"], "widgets": widgets}
+    kept = [w for w in clean["widgets"] if allowed(w, levels)]
+    widgets = [{**w, "data": _RESOLVERS[w["source"]](w["params"], ref)} for w in kept]
+    return {"title": clean["title"], "widgets": widgets, "hidden": len(clean["widgets"]) - len(kept)}
 
 
 # ═════════════════════════════════════════════════════════════════════════
@@ -549,10 +573,11 @@ def ai_allowed(key: str) -> bool:
         return True
 
 
-def catalog() -> list[dict]:
-    """Catalogue décrit pour l'IA (et l'API) : sources, visuels et paramètres possibles."""
+def catalog(levels: dict[str, int] | None = None) -> list[dict]:
+    """Catalogue décrit pour l'IA (et l'API) : sources, visuels et paramètres possibles.
+    Avec `levels`, seulement les sources des modules que l'utilisateur peut consulter."""
     return [{"source": s, "visuals": list(e["visuals"]), "params": list(e["params"]), "description": e["description"]}
-            for s, e in CATALOG.items()]
+            for s, e in CATALOG.items() if s == "kpi" or levels is None or levels.get(SOURCE_MODULES[s], 0) >= 1]
 
 
 def ai_enabled() -> bool:
