@@ -3,8 +3,10 @@ import { useEffect, useState } from 'react'
 import {
   BellRing, Ban, Check, CheckCircle2, Download, FileOutput, Mail, Plus, Save, Send, Sparkles, Trash2, X,
 } from 'lucide-react'
+import RefSelect from '../../components/entity/RefSelect'
 import { useApp } from '../../context/AppContext'
 import { useLanguage } from '../../context/LanguageContext'
+import { useMeta } from '../../context/MetaContext'
 import { useToast } from '../../context/ToastContext'
 import { api } from '../../lib/api'
 import { date, money, relative, todayIso } from '../../lib/format'
@@ -35,6 +37,9 @@ function draftFrom(inv, profile, kind) {
 export default function InvoiceDrawer({ invoiceId, kind = 'invoice', onClose, onChanged, origin }) {
   const { t, language } = useLanguage()
   const { profile } = useApp()
+  const { entity } = useMeta()
+  // Le catalogue d'articles est proposé si les Données techniques sont actives (champ présent sur les commandes)
+  const articles = (entity('sales.orders')?.children?.[0]?.fields || []).some((f) => f.name === 'article_id')
   const toast = useToast()
   const [invoice, setInvoice] = useState(null)
   const [form, setForm] = useState(() => draftFrom(null, profile, kind))
@@ -215,6 +220,17 @@ export default function InvoiceDrawer({ invoiceId, kind = 'invoice', onClose, on
             <div className="stack sm">
               {form.items.map((item, i) => (
                 <div key={i} className="card tight" style={{ boxShadow: 'none', padding: 12 }}>
+                  {articles && (
+                    <div style={{ marginBottom: 8 }}>
+                      <RefSelect refKey="technical.articles" source="sales.orders.article_id" value={item.article_id ?? null}
+                        label={item.article_label} ariaLabel={t('invoices.article')} placeholder={t('invoices.article_ph')}
+                        onChange={(id, option) => setForm((f) => ({ ...f, items: f.items.map((it, j) => (j !== i ? it : {
+                          ...it, article_id: id, article_label: option?.label ?? null,
+                          description: option?.fill?.description ?? it.description,
+                          unit_price: option?.fill?.unit_price ?? it.unit_price,
+                        })) }))} />
+                    </div>
+                  )}
                   <div className="row" style={{ alignItems: 'flex-start' }}>
                     <textarea className="textarea grow" rows={1} style={{ minHeight: 40 }} value={item.description}
                       placeholder={t('invoices.line_ph')} aria-label={t('invoices.description')}

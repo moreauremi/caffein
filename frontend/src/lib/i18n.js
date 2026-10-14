@@ -695,6 +695,8 @@ const DICT = {
   'entity.details': ['Fiche', 'Details'],
   'entity.not_found': ['Fiche introuvable.', 'Record not found.'],
   'entity.export': ['Exporter', 'Export'],
+  'invoices.article': ['Article', 'Item'],
+  'invoices.article_ph': ['Article du catalogue (facultatif)', 'Catalogue item (optional)'],
   'entity.export_hint': ['Télécharger cette liste pour un tableur (CSV)', 'Download this list for a spreadsheet (CSV)'],
 
   // ── Accueil (modules) ─────────────────────────────────────────────

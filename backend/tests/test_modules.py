@@ -508,3 +508,18 @@ def test_cli_modules(demo, capsys, restore_modules):
     assert main(["modules", "enable", "crm"]) == 0 and registry.is_enabled("crm")
     assert main(["modules", "enable", "inconnu"]) == 1
     assert main(["modules", "enable"]) == 2
+
+
+def test_invoice_lines_take_catalogue_articles(client, restore_modules):
+    kit = db.fetch_one("SELECT id FROM technical_articles WHERE name = 'Kit papeterie de marque'")["id"]
+    inv = client.post("/api/invoices", json={"kind": "quote", "client_id": _client_id(), "items": [
+        {"description": "Kit", "quantity": 2, "unit_price": 290, "article_id": kit}]}).json()
+    assert inv["items"][0]["article_id"] == kit and inv["items"][0]["article_label"] == "Kit papeterie de marque"
+    assert client.post("/api/invoices", json={"kind": "quote", "items": [
+        {"description": "x", "quantity": 1, "unit_price": 1, "article_id": 999999}]}).status_code == 400
+    from tests.modules.helpers import disable_module
+
+    disable_module(client, "technical")
+    inv = client.post("/api/invoices", json={"kind": "quote", "items": [
+        {"description": "x", "quantity": 1, "unit_price": 1, "article_id": kit}]}).json()
+    assert inv["items"][0]["article_id"] is None and inv["items"][0]["article_label"] is None

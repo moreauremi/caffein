@@ -174,7 +174,25 @@ def _clean_items(items: object) -> list[dict]:
             except (TypeError, ValueError):
                 raise ValueError("Article invalide.") from None
         clean.append(line)
+    _check_articles(clean)
     return clean
+
+
+def _check_articles(lines: list[dict]) -> None:
+    """Article du catalogue (Données techniques) : vérifié si le module est actif, ignoré sinon."""
+    from .core import modules as registry
+
+    ids = {line["article_id"] for line in lines if line.get("article_id")}
+    if not ids:
+        return
+    if not registry.is_enabled("technical"):
+        for line in lines:
+            line["article_id"] = None
+        return
+    found = {r["id"] for r in db.fetch_all(f"SELECT id FROM technical_articles WHERE id IN ({', '.join('?' for _ in ids)})",
+                                           tuple(ids))}
+    if ids - found:
+        raise ValueError("Article introuvable dans les données techniques.")
 
 
 def invoice_lines(invoice_ids: list[int] | None = None, kind: str | None = None) -> dict[int, list[dict]]:
@@ -275,6 +293,10 @@ def get_invoice(invoice_id: int) -> dict:
     if not row:
         raise NotFound("Facture introuvable")
     inv = _hydrate(row)
+    from .core.entities import ref_label  # libellé de l'article choisi sur une ligne (module Données techniques)
+
+    for line in inv["items"]:
+        line["article_label"] = ref_label("technical.articles", line.get("article_id"))
     inv["client"] = get_client(inv.get("client_id"))
     inv["client_name"] = inv["client"]["name"] if inv["client"] else ""
     inv["emails"] = db.fetch_all(
