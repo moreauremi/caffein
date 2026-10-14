@@ -4,13 +4,41 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/). Ver
 
 ## [Non publié]
 
+Caffein devient un **ERP modulaire** : les onglets Factures, TVA, URSSAF… laissent la place à des modules qui
+s'activent et se règlent par utilisateur. Voir `docs/modules.md`.
+
 ### Ajouté
-- **Mes vues** (`/vues`) : un tableau de bord qui se compose en langage naturel (« mon chiffre d'affaires par mois et mes
+- **Modules** : Accueil, Données techniques, RH, Achats, Ventes, CRM, Production, Logistique, Projets, Qualité,
+  Maintenance, Comptabilité et Paramètres. Chaque module apporte ses tables SQL, ses écrans, ses chiffres clés, ses
+  raccourcis et ses données de démonstration ; il s'active ou se désactive dans Paramètres → Modules (dépendances
+  vérifiées), et l'assistant d'installation propose de les choisir.
+- **Droits par module** : rôles (grille module × niveau : aucun, lecture, écriture, gestion), dérogations par
+  utilisateur, rôles fournis (Équipe, Lecture seule, Commercial, Acheteur, Production, RH, Comptable). Un module sans
+  droit disparaît de la navigation ; le serveur répond 404 (module inactif) ou 403 (niveau insuffisant).
+- **Moteur de données** : un module déclare ses entités (champs typés, lignes, actions, calculs) et Caffein en tire
+  l'API (`/api/data/…` : liste, recherche, filtres, tri, fiche, actions, aperçu des calculs, export CSV) et les écrans.
+  Les calculs (totaux, coûts de revient, stocks, soldes…) sont faits par le serveur, y compris pendant la saisie.
+- **Événements entre modules** : livrer une commande sort le stock, réceptionner un achat l'alimente, déclarer une
+  fabrication consomme les composants, si la Logistique est active. Une fiche utilisée par un autre module ne se
+  supprime pas.
+- **Navigation** : barre latérale des modules (repliable, en tiroir sur mobile), onglets des pages, accueil avec les
+  chiffres clés de chaque module ; Paramètres en pages (compte, apparence, entreprise, fiscalité, notifications,
+  utilisateurs, rôles et droits, modules, automatisations, à propos).
+- **Mes vues** (Accueil → Mes vues) : un tableau de bord qui se compose en langage naturel (« mon chiffre d'affaires par mois et mes
   impayés », « ajoute mes dépenses », « enlève les impayés »). L'IA choisit des cartes dans un catalogue fermé (chiffres clés,
   CA par mois ou par client, impayés, dépenses, TVA, devis, échéances) et ne reçoit jamais les données ; sans clé, une
   analyse locale prend le relais. Les vues s'enregistrent par utilisateur et se rechargent sans IA. Lecture seule : une
-  demande de modification est refusée. Voir `docs/tableau-de-bord-ia.md`.
+  demande de modification est refusée. Les chiffres clés de tous les modules accessibles sont aussi proposés.
+  Voir `docs/tableau-de-bord-ia.md`.
 - Migration 3 : table `dashboard_views`.
+
+### Modifié
+- Les lignes des factures et devis sont dans la table `invoice_lines` (elles étaient dans un champ JSON) ; la migration 4
+  les recopie. Les totaux d'une facture en cours de saisie sont calculés par le serveur.
+- Les membres reçoivent le rôle « Équipe (accès complet) » : mêmes accès qu'avant.
+- Les adresses changent (`/ventes/factures`, `/comptabilite/tva`…) ; les anciennes (`/factures`, `/tva`, `/urssaf`,
+  `/documents`, `/automatisations`, `/vues`) redirigent, les liens `/f/…` envoyés aux clients ne changent pas.
+- Les scripts d'automatisation appartiennent à un module : ils s'arrêtent quand le module est désactivé.
 
 ## [2.0.0] — 2026-10-07
 
