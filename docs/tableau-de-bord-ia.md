@@ -56,6 +56,14 @@ Pourquoi :
 | `pending_quotes` | devis en attente de réponse | tableau | `limit` |
 | `deadlines` | prochaines échéances TVA et URSSAF | liste | — |
 
+S'y ajoutent les **chiffres clés de chaque module** (articles à réapprovisionner, valeur du stock, absences du jour,
+commandes à recevoir…) : la source `kpi` accepte `metric = "<module>.<chiffre>"`, calculé par le module lui-même,
+exactement comme sur l'accueil. L'analyse locale les reconnaît à leur libellé (« montre-moi les articles à
+réapprovisionner ») ; l'IA les reçoit dans son catalogue.
+
+**Droits** : une carte n'apparaît que si l'utilisateur peut consulter le module dont elle vient (Ventes pour le chiffre
+d'affaires, Comptabilité pour la TVA…) ; les autres sont retirées de la vue (`hidden` en donne le nombre) et du catalogue.
+
 Chaque source est une fonction Python qui s'appuie sur la logique métier existante (`services.py`) : mêmes règles de
 calcul que le reste de l'application, mêmes données déchiffrées côté serveur. Les périodes sont celles en cours
 (mois, trimestre civil, année civile, 6 ou 12 derniers mois) : « l'an dernier » est refusé plutôt que confondu avec
@@ -78,7 +86,7 @@ calcul que le reste de l'application, mêmes données déchiffrées côté serve
 
 **Interface**
 
-- Page « Mes vues » (`/vues`) : barre de demande avec exemples, grille de cartes, retrait d'une carte d'un clic,
+- Page « Mes vues » (Accueil → Mes vues, `/accueil/vues`) : barre de demande avec exemples, grille de cartes, retrait d'une carte d'un clic,
   « en tableau » / « en graphique » pour changer l'affichage, vues enregistrées (boutons « Mettre à jour la vue » dès que la
   vue affichée diffère, « Supprimer la vue »), message « Compris : … » et badge IA ou analyse locale.
 - Accessibilité : le focus reste dans le champ après une demande et passe à la carte voisine après un retrait, messages
