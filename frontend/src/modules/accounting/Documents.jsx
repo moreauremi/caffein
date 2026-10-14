@@ -3,14 +3,14 @@ import { useMemo, useState } from 'react'
 import {
   Bot, ExternalLink, FileStack, Folder, FolderInput, Lock, Pencil, ScanLine, Search, Trash2,
 } from 'lucide-react'
-import DropZone from '../components/DropZone'
-import FolderModal from '../components/FolderModal'
-import { EmptyState, Modal, Spinner, TvaType } from '../components/ui'
-import { useLanguage } from '../context/LanguageContext'
-import { useToast } from '../context/ToastContext'
-import { api } from '../lib/api'
-import { date, money } from '../lib/format'
-import { useApi } from '../lib/useApi'
+import DropZone from './DropZone'
+import FolderModal from './FolderModal'
+import { EmptyState, Modal, Spinner, TvaType } from '../../components/ui'
+import { useLanguage } from '../../context/LanguageContext'
+import { useToast } from '../../context/ToastContext'
+import { api } from '../../lib/api'
+import { date, money } from '../../lib/format'
+import { useApi } from '../../lib/useApi'
 
 const CATEGORIES = ['Prestations', 'Frais fixes', 'Marketing', 'Logiciels/SaaS', 'Transport', 'Matériel', 'Autres']
 

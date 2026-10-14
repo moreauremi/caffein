@@ -4,14 +4,14 @@ import {
   BarChart3, CalendarClock, ChevronLeft, ChevronRight, CircleCheck, ExternalLink, Gauge, HandCoins, Info, Landmark,
   PiggyBank, Undo2, Wallet,
 } from 'lucide-react'
-import { BarsChart } from '../components/charts'
-import { DeclarationStatus, Spinner, StatCard } from '../components/ui'
-import { useApp } from '../context/AppContext'
-import { useLanguage } from '../context/LanguageContext'
-import { useToast } from '../context/ToastContext'
-import { api } from '../lib/api'
-import { date, daysFromNow, money, percent } from '../lib/format'
-import { useApi } from '../lib/useApi'
+import { BarsChart } from '../../components/charts'
+import { DeclarationStatus, Spinner, StatCard } from '../../components/ui'
+import { useApp } from '../../context/AppContext'
+import { useLanguage } from '../../context/LanguageContext'
+import { useToast } from '../../context/ToastContext'
+import { api } from '../../lib/api'
+import { date, daysFromNow, money, percent } from '../../lib/format'
+import { useApi } from '../../lib/useApi'
 
 function Threshold({ label, value, limit, ratio, language }) {
   const cls = ratio >= 1 ? 'bad' : ratio >= 0.8 ? 'warn' : 'accent'

@@ -32,7 +32,7 @@ const DICT = {
   'login.demo_title': ['Instance de démonstration', 'Demo instance'],
   'login.demo_text': ['Explorez Caffein avec des données d’exemple, sans créer de compte.', 'Explore Caffein with sample data, no account needed.'],
   'login.demo_button': ['Accès démo', 'Open the demo'],
-  'setup.step': ['Installation · étape {n} sur 3', 'Setup · step {n} of 3'],
+  'setup.step': ['Installation · étape {n} sur {total}', 'Setup · step {n} of {total}'],
   'setup.title_0': ['Votre entreprise', 'Your company'],
   'setup.title_1': ['Votre régime fiscal', 'Your tax regime'],
   'setup.title_2': ['Le compte administrateur', 'The administrator account'],
@@ -69,7 +69,7 @@ const DICT = {
   'users.deleted': ['Compte supprimé', 'Account deleted'],
   'users.delete_confirm': ['Supprimer le compte {name} ?', 'Delete account {name}?'],
   'users.temp_password': ['Mot de passe provisoire', 'Temporary password'],
-  'users.roles_hint': ['Un membre gère factures, clients et documents. Un administrateur règle aussi l’entreprise, la fiscalité et les comptes.', 'A member handles invoices, clients and documents. An administrator also manages company, tax and accounts.'],
+  'users.roles_hint': ['Un membre accède aux modules selon son rôle métier (Paramètres → Rôles et droits). Un administrateur a tous les droits et règle l’instance : entreprise, utilisateurs, modules.', 'A member accesses modules according to their business role (Settings → Roles and permissions). An administrator has every permission and manages the instance: company, users, modules.'],
   'users.reset_password': ['Définir un mot de passe', 'Set a password'],
   'users.reset_title': ['Nouveau mot de passe pour {name}', 'New password for {name}'],
   'users.reset_hint': ['Les sessions ouvertes de ce compte seront fermées.', 'Open sessions for this account will be closed.'],
@@ -83,6 +83,23 @@ const DICT = {
 
   // ── Navigation & utilisateur ──────────────────────────────────────
   'nav.label': ['Navigation principale', 'Main navigation'],
+  'nav.modules': ['Modules', 'Modules'],
+  'nav.pages': ['Pages du module', 'Module pages'],
+  'nav.open_menu': ['Ouvrir le menu', 'Open menu'],
+  'nav.close_menu': ['Fermer le menu', 'Close menu'],
+  'nav.collapse': ['Réduire le menu', 'Collapse menu'],
+  'nav.expand': ['Déplier le menu', 'Expand menu'],
+  'nav.loading_error': ['Impossible de charger votre espace.', 'Unable to load your workspace.'],
+  'nav.retry': ['Réessayer', 'Try again'],
+  'nav.no_access': ['Ce module n’est pas activé, ou vous n’y avez pas accès.', 'This module is not enabled, or you do not have access to it.'],
+  'level.none': ['Aucun accès', 'No access'],
+  'level.read': ['Lecture', 'Read'],
+  'level.write': ['Écriture', 'Write'],
+  'level.manage': ['Gestion', 'Manage'],
+  'level.none_hint': ['Le module est masqué.', 'The module is hidden.'],
+  'level.read_hint': ['Consulter, sans rien modifier.', 'View only.'],
+  'level.write_hint': ['Créer, modifier, lancer les actions.', 'Create, edit, run actions.'],
+  'level.manage_hint': ['En plus : supprimer, voir les données sensibles.', 'Also: delete, see sensitive data.'],
   'nav.home': ['Accueil', 'Home'],
   'nav.tva': ['TVA', 'VAT'],
   'nav.invoices': ['Factures', 'Invoices'],
@@ -638,6 +655,100 @@ const DICT = {
   'public.transfer': ['Régler par virement', 'Pay by bank transfer'],
   'public.beneficiary': ['Bénéficiaire', 'Beneficiary'],
   'public.reference': ['Référence à indiquer', 'Payment reference'],
+
+  // ── Écrans génériques (listes et fiches des modules) ──────────────
+  'entity.new': ['Nouveau', 'New'],
+  'entity.new_title': ['Nouvelle fiche · {name}', 'New record · {name}'],
+  'entity.search': ['Rechercher…', 'Search…'],
+  'entity.all': ['Tous', 'All'],
+  'entity.filters': ['Filtres', 'Filters'],
+  'entity.clear_filters': ['Effacer les filtres', 'Clear filters'],
+  'entity.count': ['{n} fiche|{n} fiches', '{n} record|{n} records'],
+  'entity.empty': ['Aucune fiche pour l’instant.', 'No records yet.'],
+  'entity.empty_search': ['Aucun résultat pour cette recherche.', 'No results for this search.'],
+  'entity.create_first': ['Créer la première', 'Create the first one'],
+  'entity.page': ['Page {page} sur {pages}', 'Page {page} of {pages}'],
+  'entity.prev': ['Page précédente', 'Previous page'],
+  'entity.next': ['Page suivante', 'Next page'],
+  'entity.sort_by': ['Trier par {name}', 'Sort by {name}'],
+  'entity.saved': ['Fiche enregistrée', 'Record saved'],
+  'entity.created': ['Fiche créée', 'Record created'],
+  'entity.deleted': ['Fiche supprimée', 'Record deleted'],
+  'entity.delete_confirm': ['Confirmer la suppression', 'Confirm deletion'],
+  'entity.locked': ['Fiche verrouillée', 'Locked record'],
+  'entity.readonly': ['Consultation seulement : vous n’avez pas les droits d’écriture sur ce module.', 'View only: you do not have write access to this module.'],
+  'entity.unsaved': ['Modifications non enregistrées', 'Unsaved changes'],
+  'entity.discard': ['Abandonner les modifications ?', 'Discard your changes?'],
+  'entity.add_line': ['Ajouter une ligne', 'Add a line'],
+  'entity.remove_line': ['Retirer la ligne {n}', 'Remove line {n}'],
+  'entity.no_lines': ['Aucune ligne.', 'No lines.'],
+  'entity.lines_count': ['{n} ligne|{n} lignes', '{n} line|{n} lines'],
+  'entity.line': ['Ligne {n}', 'Line {n}'],
+  'entity.choose': ['Choisir…', 'Choose…'],
+  'entity.none': ['Aucun', 'None'],
+  'entity.no_option': ['Aucun résultat', 'No results'],
+  'entity.yes': ['Oui', 'Yes'],
+  'entity.no': ['Non', 'No'],
+  'entity.loading': ['Chargement…', 'Loading…'],
+  'entity.computed': ['Calculé par Caffein', 'Calculated by Caffein'],
+  'entity.actions': ['Actions', 'Actions'],
+  'entity.details': ['Fiche', 'Details'],
+  'entity.not_found': ['Fiche introuvable.', 'Record not found.'],
+
+  // ── Accueil (modules) ─────────────────────────────────────────────
+  'home.modules_title': ['Vos modules', 'Your modules'],
+  'home.shortcuts': ['Raccourcis', 'Shortcuts'],
+  'home.no_kpi': ['Aucun chiffre clé : activez des modules dans Paramètres → Modules.', 'No key figures: enable modules in Settings → Modules.'],
+
+  // ── Paramètres : utilisateurs, rôles, modules ─────────────────────
+  'users.access': ['Accès aux modules', 'Module access'],
+  'users.access_hint': ['Par défaut, chaque module suit le rôle. Une dérogation donne à cette personne un autre niveau.', 'By default, each module follows the role. An override gives this person a different level.'],
+  'users.follow_role': ['Selon le rôle ({level})', 'From role ({level})'],
+  'users.admin_all': ['Administrateur : tous les droits sur les modules actifs.', 'Administrator: full access to active modules.'],
+  'users.business_role': ['Rôle métier', 'Business role'],
+  'users.account_type': ['Type de compte', 'Account type'],
+  'users.edit_access': ['Droits', 'Access'],
+  'users.access_title': ['Droits de {name}', 'Access for {name}'],
+  'users.access_saved': ['Droits enregistrés', 'Access saved'],
+  'users.inactive': ['Désactivé', 'Disabled'],
+  'users.no_role': ['Sans rôle', 'No role'],
+  'roles.title': ['Rôles et droits', 'Roles and permissions'],
+  'roles.lead': ['Un rôle est une grille de droits par module. Chaque membre a un rôle ; les administrateurs ont tous les droits.', 'A role is a grid of permissions per module. Each member has a role; administrators have every permission.'],
+  'roles.new': ['Nouveau rôle', 'New role'],
+  'roles.name': ['Nom du rôle', 'Role name'],
+  'roles.description': ['Description', 'Description'],
+  'roles.default_level': ['Autres modules', 'Other modules'],
+  'roles.default_hint': ['Niveau pour les modules non réglés ci-dessous (et les modules ajoutés plus tard).', 'Level for modules not set below (and modules added later).'],
+  'roles.system': ['Fourni', 'Built-in'],
+  'roles.users': ['{n} utilisateur|{n} utilisateurs', '{n} user|{n} users'],
+  'roles.saved': ['Rôle enregistré', 'Role saved'],
+  'roles.created': ['Rôle créé', 'Role created'],
+  'roles.deleted': ['Rôle supprimé', 'Role deleted'],
+  'roles.module': ['Module', 'Module'],
+  'roles.inactive': ['inactif', 'disabled'],
+  'roles.default_option': ['Par défaut ({level})', 'Default ({level})'],
+  'modules.title': ['Modules', 'Modules'],
+  'modules.lead': ['Activez les modules utiles à votre entreprise. Un module désactivé disparaît pour tout le monde ; ses données sont conservées.', 'Enable the modules your company needs. A disabled module disappears for everyone; its data is kept.'],
+  'modules.core': ['Toujours actif', 'Always on'],
+  'modules.enabled': ['Module activé', 'Module enabled'],
+  'modules.disabled': ['Module désactivé', 'Module disabled'],
+  'modules.depends': ['Nécessite : {names}', 'Requires: {names}'],
+  'modules.used_by': ['Utilisé par : {names}', 'Used by: {names}'],
+  'modules.contains': ['Contient : {names}', 'Contains: {names}'],
+  'modules.toggle': ['Activer {name}', 'Enable {name}'],
+  'setup.modules_title': ['Vos modules', 'Your modules'],
+  'setup.modules_lead': ['Choisissez ce dont votre entreprise a besoin. Vous pourrez en activer d’autres à tout moment (Paramètres → Modules).', 'Choose what your company needs. You can enable others at any time (Settings → Modules).'],
+}
+
+function format(entry, language, vars) {
+  let text = entry[language === 'en' ? 1 : 0] ?? entry[0] ?? ''
+  if (text.includes('|') && vars && 'n' in vars) {
+    const [one, many] = text.split('|')
+    const n = Number(vars.n)
+    text = (language === 'en' ? n !== 1 : n > 1) ? many : one
+  }
+  if (vars) text = text.replace(/\{(\w+)\}/g, (_, name) => (vars[name] ?? `{${name}}`))
+  return text
 }
 
 export function translate(language, key, vars) {
@@ -646,14 +757,21 @@ export function translate(language, key, vars) {
     if (import.meta.env.DEV) console.warn(`[i18n] clé manquante : ${key}`)
     return key
   }
-  let text = entry[language === 'en' ? 1 : 0] ?? entry[0]
-  if (text.includes('|') && vars && 'n' in vars) {
-    const [one, many] = text.split('|')
-    const n = Number(vars.n)
-    text = (language === 'en' ? n !== 1 : n > 1) ? many : one
+  return format(entry, language, vars)
+}
+
+// Libellé venu du serveur (modules, pages, champs) : [français, anglais], ou texte simple.
+export function pick(language, label, vars) {
+  if (label == null) return ''
+  if (typeof label === 'string') return vars ? format([label, label], language, vars) : label
+  return format(label, language, vars)
+}
+
+// Traductions apportées par un module de l'interface (frontend/src/modules/<clé>/) : n'écrasent rien.
+export function registerTranslations(entries) {
+  for (const [key, value] of Object.entries(entries || {})) {
+    if (!(key in DICT)) DICT[key] = value
   }
-  if (vars) text = text.replace(/\{(\w+)\}/g, (_, name) => (vars[name] ?? `{${name}}`))
-  return text
 }
 
 export const KEYS = Object.keys(DICT)

@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { useState } from 'react'
 import { Save } from 'lucide-react'
-import { useLanguage } from '../context/LanguageContext'
-import { useToast } from '../context/ToastContext'
-import { api } from '../lib/api'
-import { Modal, Spinner } from './ui'
+import { useLanguage } from '../../context/LanguageContext'
+import { useToast } from '../../context/ToastContext'
+import { api } from '../../lib/api'
+import { Modal, Spinner } from '../../components/ui'
 
 const FIELDS = [
   ['name', 'full'], ['contact_name'], ['email'], ['phone'], ['address', 'full'], ['zip_code'], ['city'], ['siren'], ['vat_number'],

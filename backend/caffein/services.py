@@ -697,14 +697,14 @@ def upcoming_deadlines(ref: date) -> list[dict]:
         docs = list_documents(month.start, month.end)
         c, d = _tva_totals(docs)
         items.append({"type": "tva", "label": f"TVA — {month.label}", "date": deadline.isoformat(),
-                      "days_left": (deadline - ref).days, "amount": round(c - d, 2), "path": "/tva"})
+                      "days_left": (deadline - ref).days, "amount": round(c - d, 2), "path": "/comptabilite/tva"})
     urssaf = urssaf_dashboard(ref.year)
     nxt = next((p for p in urssaf["periods"] if p["status"] in ("late", "to_declare")), None)
     if nxt is None and urssaf["next"]:
         nxt = urssaf["next"]
     if nxt:
         items.append({"type": "urssaf", "label": f"Déclaration URSSAF — {nxt['label']}", "date": nxt["deadline"],
-                      "days_left": nxt["days_left"], "amount": nxt["contributions"], "path": "/urssaf",
+                      "days_left": nxt["days_left"], "amount": nxt["contributions"], "path": "/comptabilite/urssaf",
                       "status": nxt["status"]})
     return sorted(items, key=lambda x: x["date"])
 

@@ -38,7 +38,9 @@ class Field:
     type: str = "text"
     required: bool = False
     unique: bool = False
-    choices: tuple[tuple[Any, Label], ...] = ()   # liste de choix (enum, ou valeurs numériques permises)
+    # Liste de choix (enum, ou valeurs numériques permises) : (valeur, libellé) ou (valeur, libellé, ton)
+    # ; le ton colore le badge dans les listes : good | warn | bad | info | accent | outline.
+    choices: tuple[tuple, ...] = ()
     ref: str | None = None                        # « technical.articles » pour un champ de type ref
     fill: dict[str, str] | None = None            # ref : champs recopiés de la fiche choisie {champ: champ_de_la_fiche}
     default: Any = None                           # valeur, ou fonction sans argument (date du jour…)
@@ -65,6 +67,8 @@ class Field:
             raise ValueError(f"Le champ {self.name} doit indiquer l'entité référencée (ref=…).")
         if self.type == "enum" and not self.choices:
             raise ValueError(f"Le champ {self.name} doit indiquer ses choix.")
+        if any(not isinstance(c, tuple) or len(c) not in (2, 3) for c in self.choices):
+            raise ValueError(f"Le champ {self.name} : choix (valeur, libellé) ou (valeur, libellé, ton).")
         if self.maxlength is None:
             self.maxlength = 5000 if self.type == "longtext" else 200
         for name in (self.fill or {}).values():
@@ -231,9 +235,9 @@ def _coerce_filter(fld: Field, value: str) -> Any:
     if fld.type == "bool":
         return 1 if value in ("1", "true", "oui", "yes") else 0
     if fld.type == "enum":
-        if value not in {str(v) for v, _ in fld.choices}:
+        if value not in {str(c[0]) for c in fld.choices}:
             raise ValueError("Filtre invalide.")
-        return next(v for v, _ in fld.choices if str(v) == value)
+        return next(c[0] for c in fld.choices if str(c[0]) == value)
     return value
 
 
@@ -373,7 +377,7 @@ def _clean_value(fld: Field, value: Any, label: str) -> Any:
         if number != number or number in (float("inf"), float("-inf")):
             raise ValueError(f"{label} : nombre attendu.")
         _bounds(fld, number, label)
-        if fld.choices and number not in {float(v) for v, _ in fld.choices}:
+        if fld.choices and number not in {float(c[0]) for c in fld.choices}:
             raise ValueError(f"{label} : valeur non proposée.")
         return round(number, 2) if t == "money" else round(number, 6)
     if t == "date":
@@ -388,7 +392,7 @@ def _clean_value(fld: Field, value: Any, label: str) -> Any:
             return int(value in (1, "1", "true"))
         raise ValueError(f"{label} : oui ou non attendu.")
     if t == "enum":
-        allowed = {str(v): v for v, _ in fld.choices}
+        allowed = {str(c[0]): c[0] for c in fld.choices}
         if str(value) not in allowed:
             raise ValueError(f"{label} : valeur non proposée.")
         return allowed[str(value)]
@@ -662,10 +666,10 @@ def options(entity: Entity, q: str | None = None, limit: int = 20, fill: dict[st
 # ═════════════════════════════════════════════════════════════════════════
 def _field_meta(fld: Field) -> dict:
     meta = {"name": fld.name, "label": fld.label, "type": fld.type, "required": fld.required,
-            "readonly": fld.readonly or fld.computed, "list": fld.list, "search": fld.search, "filter": fld.filter,
-            "width": fld.width}
+            "readonly": fld.readonly or fld.computed, "computed": fld.computed, "list": fld.list, "search": fld.search,
+            "filter": fld.filter, "sortable": not fld.computed, "width": fld.width}
     if fld.choices:
-        meta["choices"] = [{"value": v, "label": lbl} for v, lbl in fld.choices]
+        meta["choices"] = [{"value": c[0], "label": c[1], **({"tone": c[2]} if len(c) > 2 else {})} for c in fld.choices]
     if fld.ref:
         meta["ref"] = fld.ref
     if fld.fill:

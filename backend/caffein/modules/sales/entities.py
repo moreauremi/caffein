@@ -100,8 +100,9 @@ CLIENTS = Entity(
 # Commandes clients
 # ═════════════════════════════════════════════════════════════════════════
 ORDER_STATUSES = (
-    ("draft", ("Brouillon", "Draft")), ("confirmed", ("Confirmée", "Confirmed")), ("delivered", ("Livrée", "Delivered")),
-    ("invoiced", ("Facturée", "Invoiced")), ("cancelled", ("Annulée", "Cancelled")),
+    ("draft", ("Brouillon", "Draft")), ("confirmed", ("Confirmée", "Confirmed"), "info"),
+    ("delivered", ("Livrée", "Delivered"), "accent"), ("invoiced", ("Facturée", "Invoiced"), "good"),
+    ("cancelled", ("Annulée", "Cancelled"), "outline"),
 )
 
 

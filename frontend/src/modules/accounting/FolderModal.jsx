@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { ExternalLink, FileText, FolderOpen } from 'lucide-react'
-import { useLanguage } from '../context/LanguageContext'
-import { date } from '../lib/format'
-import { useApi } from '../lib/useApi'
-import { EmptyState, Modal, Spinner } from './ui'
+import { useLanguage } from '../../context/LanguageContext'
+import { date } from '../../lib/format'
+import { useApi } from '../../lib/useApi'
+import { EmptyState, Modal, Spinner } from '../../components/ui'
 
 function size(bytes) {
   return bytes > 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} Mo` : `${Math.max(1, Math.round(bytes / 1024))} Ko`

@@ -5,13 +5,13 @@ import {
   ArrowRight, BarChart3, CalendarClock, Clock3, FileCheck2, FileSignature, FileStack, FolderOpen, Inbox, Info, Landmark,
   Percent, Receipt, Send,
 } from 'lucide-react'
-import { BarsChart } from '../components/charts'
-import DropZone from '../components/DropZone'
-import FolderModal from '../components/FolderModal'
-import { EmptyState, Segmented, StatCard, TvaType } from '../components/ui'
-import { useLanguage } from '../context/LanguageContext'
-import { capitalize, date, daysFromNow, duration, money, percent } from '../lib/format'
-import { useApi } from '../lib/useApi'
+import { BarsChart } from '../../components/charts'
+import DropZone from './DropZone'
+import FolderModal from './FolderModal'
+import { EmptyState, Segmented, StatCard, TvaType } from '../../components/ui'
+import { useLanguage } from '../../context/LanguageContext'
+import { capitalize, date, daysFromNow, duration, money, percent } from '../../lib/format'
+import { useApi } from '../../lib/useApi'
 
 const QUICK_FOLDERS = [
   { key: 'envoyees', icon: Send },
@@ -147,7 +147,7 @@ export default function CaffeinDashboard() {
       <div className="card flush section-gap">
         <div className="card-head" style={{ padding: '18px 20px 0' }}>
           <div className="card-title"><FileStack size={16} /> {t('tva.recent')}</div>
-          <Link to="/documents" className="link small">{t('common.see_all')} <ArrowRight size={14} /></Link>
+          <Link to="/comptabilite/justificatifs" className="link small">{t('common.see_all')} <ArrowRight size={14} /></Link>
         </div>
         {data?.recent?.length ? (
           <div className="table-wrap">

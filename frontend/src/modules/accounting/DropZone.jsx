@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { useRef, useState } from 'react'
 import { CheckCircle2, ScanLine, UploadCloud, XCircle } from 'lucide-react'
-import { useLanguage } from '../context/LanguageContext'
-import { useToast } from '../context/ToastContext'
-import { api } from '../lib/api'
-import { money } from '../lib/format'
+import { useLanguage } from '../../context/LanguageContext'
+import { useToast } from '../../context/ToastContext'
+import { api } from '../../lib/api'
+import { money } from '../../lib/format'
 
 const MIN_SCAN_MS = 2400 // animation de traitement (doc : 2,4 secondes)
 

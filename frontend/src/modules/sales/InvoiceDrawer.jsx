@@ -1,24 +1,20 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   BellRing, Ban, Check, CheckCircle2, Download, FileOutput, Mail, Plus, Save, Send, Sparkles, Trash2, X,
 } from 'lucide-react'
-import { useApp } from '../context/AppContext'
-import { useLanguage } from '../context/LanguageContext'
-import { useToast } from '../context/ToastContext'
-import { api } from '../lib/api'
-import { date, money, relative, todayIso } from '../lib/format'
+import { useApp } from '../../context/AppContext'
+import { useLanguage } from '../../context/LanguageContext'
+import { useToast } from '../../context/ToastContext'
+import { api } from '../../lib/api'
+import { date, money, relative, todayIso } from '../../lib/format'
+import { useDebounced } from '../../lib/useDebounced'
 import ClientModal from './ClientModal'
-import { ConfirmButton, Drawer, EmailStatus, InvoiceStatus, ReminderDots, Spinner, Toggle } from './ui'
+import { ConfirmButton, Drawer, EmailStatus, InvoiceStatus, ReminderDots, Spinner, Toggle } from '../../components/ui'
 
 const VAT_RATES = [0.2, 0.1, 0.055, 0.021]
 const blankItem = () => ({ description: '', quantity: 1, unit_price: 0 })
 
-function totals(items, vatExempt, vatRate) {
-  const subtotal = items.reduce((s, i) => s + Math.round(Number(i.quantity || 0) * Number(i.unit_price || 0) * 100) / 100, 0)
-  const vat = vatExempt ? 0 : Math.round(subtotal * vatRate * 100) / 100
-  return { subtotal, vat, total: subtotal + vat }
-}
 
 function draftFrom(inv, profile, kind) {
   return {
@@ -63,7 +59,16 @@ export default function InvoiceDrawer({ invoiceId, kind = 'invoice', onClose, on
   const isDraft = !invoice || invoice.status === 'draft'
   const docKind = invoice?.kind || form.kind
   const isQuote = docKind === 'quote'
-  const sums = useMemo(() => totals(form.items, form.vat_exempt, Number(form.vat_rate)), [form])
+  // Totaux calculés par le serveur pendant la saisie (les mêmes règles que pour l'enregistrement)
+  const totalsQuery = useDebounced(JSON.stringify({ items: form.items, vat_exempt: form.vat_exempt, vat_rate: form.vat_rate }), 250)
+  const [sums, setSums] = useState({ subtotal: 0, vat_amount: 0, total: 0, lines: [] })
+  useEffect(() => {
+    let cancelled = false
+    api.post('/api/invoices/preview', JSON.parse(totalsQuery))
+      .then((result) => !cancelled && setSums(result))
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [totalsQuery])
 
   const set = (key, value) => setForm((f) => ({ ...f, [key]: value }))
   const setItem = (index, key, value) => setForm((f) => ({ ...f, items: f.items.map((it, i) => (i === index ? { ...it, [key]: value } : it)) }))
@@ -227,7 +232,7 @@ export default function InvoiceDrawer({ invoiceId, kind = 'invoice', onClose, on
                         onChange={(e) => setItem(i, 'unit_price', e.target.value)} />
                     </label>
                     <span className="grow" />
-                    <span className="mono small">{money(Number(item.quantity || 0) * Number(item.unit_price || 0), language)}</span>
+                    <span className="mono small">{money(sums.lines[i] ?? 0, language)}</span>
                   </div>
                 </div>
               ))}
@@ -256,7 +261,7 @@ export default function InvoiceDrawer({ invoiceId, kind = 'invoice', onClose, on
             <hr className="divider" style={{ margin: '14px 0' }} />
             <div className="stack sm small">
               <div className="row between"><span className="muted">{t('invoices.subtotal')}</span><span className="mono">{money(sums.subtotal, language)}</span></div>
-              <div className="row between"><span className="muted">TVA</span><span className="mono">{form.vat_exempt ? t('invoices.not_applicable') : money(sums.vat, language)}</span></div>
+              <div className="row between"><span className="muted">TVA</span><span className="mono">{form.vat_exempt ? t('invoices.not_applicable') : money(sums.vat_amount, language)}</span></div>
               <div className="row between" style={{ fontSize: 16, fontWeight: 650 }}><span>{form.vat_exempt ? 'Total' : 'Total TTC'}</span><span className="mono">{money(sums.total, language)}</span></div>
             </div>
           </div>
@@ -326,7 +331,7 @@ export default function InvoiceDrawer({ invoiceId, kind = 'invoice', onClose, on
                       <td>{it.description}</td>
                       <td className="right mono small">{it.quantity}</td>
                       <td className="right mono small">{money(it.unit_price, language)}</td>
-                      <td className="right mono small">{money(it.quantity * it.unit_price, language)}</td>
+                      <td className="right mono small">{money(it.amount, language)}</td>
                     </tr>
                   ))}
                 </tbody>

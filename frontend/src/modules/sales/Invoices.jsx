@@ -5,14 +5,14 @@ import {
   AlertTriangle, BellRing, CheckCircle2, FileOutput, FileText, Hourglass, Pencil, Plus, ReceiptText, Search, Send, Sparkles,
   Trash2, UsersRound, Wallet,
 } from 'lucide-react'
-import ClientModal from '../components/ClientModal'
-import InvoiceDrawer from '../components/InvoiceDrawer'
-import { EmptyState, InvoiceStatus, ReminderDots, Segmented, Spinner, StatCard } from '../components/ui'
-import { useLanguage } from '../context/LanguageContext'
-import { useToast } from '../context/ToastContext'
-import { api } from '../lib/api'
-import { date, money } from '../lib/format'
-import { useApi } from '../lib/useApi'
+import ClientModal from './ClientModal'
+import InvoiceDrawer from './InvoiceDrawer'
+import { EmptyState, InvoiceStatus, ReminderDots, Segmented, Spinner, StatCard } from '../../components/ui'
+import { useLanguage } from '../../context/LanguageContext'
+import { useToast } from '../../context/ToastContext'
+import { api } from '../../lib/api'
+import { date, money } from '../../lib/format'
+import { useApi } from '../../lib/useApi'
 
 const EXAMPLES = ['invoices.ex1', 'invoices.ex2', 'invoices.ex3']
 const INVOICE_FILTERS = ['all', 'draft', 'pending', 'overdue', 'paid']

@@ -50,7 +50,7 @@ export default function PublicInvoice() {
             {inv.items.map((it, i) => (
               <tr key={i}>
                 <td>{it.description}{it.quantity !== 1 && <span className="muted"> × {it.quantity}</span>}</td>
-                <td className="right mono">{money(it.quantity * it.unit_price, language)}</td>
+                <td className="right mono">{money(it.amount, language)}</td>
               </tr>
             ))}
           </tbody>

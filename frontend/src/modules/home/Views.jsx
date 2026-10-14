@@ -4,14 +4,14 @@
 // et calcule les données. Une vue enregistrée se recharge sans rappeler l'IA.
 import { useEffect, useRef, useState } from 'react'
 import { AlertTriangle, Bot, Cpu, LayoutGrid, RotateCw, Save, Sparkles, Trash2, WandSparkles } from 'lucide-react'
-import Widget from '../components/views/Widget'
-import { ConfirmButton, EmptyState, Spinner } from '../components/ui'
-import { useAuth } from '../context/AuthContext'
-import { useLanguage } from '../context/LanguageContext'
-import { useToast } from '../context/ToastContext'
-import { api } from '../lib/api'
-import { useApi } from '../lib/useApi'
-import { readCurrentView, storeCurrentView } from '../lib/viewsStorage'
+import Widget from './Widget'
+import { ConfirmButton, EmptyState, Spinner } from '../../components/ui'
+import { useAuth } from '../../context/AuthContext'
+import { useLanguage } from '../../context/LanguageContext'
+import { useToast } from '../../context/ToastContext'
+import { api } from '../../lib/api'
+import { useApi } from '../../lib/useApi'
+import { readCurrentView, storeCurrentView } from '../../lib/viewsStorage'
 
 const EMPTY = { title: '', widgets: [] }
 const EXAMPLES = ['views.example_1', 'views.example_2', 'views.example_3', 'views.example_4', 'views.example_5']

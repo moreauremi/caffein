@@ -3,13 +3,13 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   Bot, CalendarClock, Clock, Copy, History, Inbox, Mail, MailOpen, Paperclip, Play, Server, Sparkles, Terminal, Workflow,
 } from 'lucide-react'
-import { JOB_ICONS } from '../components/jobIcons'
-import { EmailStatus, EmptyState, Modal, RunStatus, Spinner } from '../components/ui'
-import { useLanguage } from '../context/LanguageContext'
-import { useToast } from '../context/ToastContext'
-import { api } from '../lib/api'
-import { date, relative } from '../lib/format'
-import { useApi } from '../lib/useApi'
+import { JOB_ICONS } from '../../components/jobIcons'
+import { EmailStatus, EmptyState, Modal, RunStatus, Spinner } from '../../components/ui'
+import { useLanguage } from '../../context/LanguageContext'
+import { useToast } from '../../context/ToastContext'
+import { api } from '../../lib/api'
+import { date, relative } from '../../lib/format'
+import { useApi } from '../../lib/useApi'
 
 function StatusPill({ icon: Icon, label, value, ok }) {
   return (

@@ -5,8 +5,8 @@ import { Link } from 'react-router-dom'
 import {
   AlertTriangle, CalendarClock, Clock3, FileSignature, Landmark, Percent, ReceiptText, TrendingUp, Wallet, X,
 } from 'lucide-react'
-import { BarsChart } from '../charts'
-import { EmptyState, InvoiceStatus, StatCard } from '../ui'
+import { BarsChart } from '../../components/charts'
+import { EmptyState, InvoiceStatus, StatCard } from '../../components/ui'
 import { useLanguage } from '../../context/LanguageContext'
 import { date, daysFromNow, duration, money } from '../../lib/format'
 
@@ -115,7 +115,7 @@ function InvoicesWidget({ widget }) {
       </div>
       <div className="row between small muted" style={{ marginTop: 12 }}>
         <span>{t(quotes ? 'views.quotes_total' : 'views.unpaid_total', { n: data.count, amount: money(data.total, language) })}</span>
-        <Link className="link small" to={quotes ? '/factures?tab=quote' : `/factures${widget.params.only_overdue ? '?status=overdue' : ''}`}>
+        <Link className="link small" to={quotes ? '/ventes/factures?tab=quote' : `/ventes/factures${widget.params.only_overdue ? '?status=overdue' : ''}`}>
           {t('common.see_all')}
         </Link>
       </div>
