@@ -453,3 +453,45 @@ def test_upgrade_from_v3(tmp_path, monkeypatch):
     assert not (new_modules & enabled)  # les nouveaux modules arrivent désactivés
     db.init_db()  # rejouer les migrations ne change rien
     assert len(services.get_invoice(1)["items"]) == 2
+
+
+# ═════════════════════════════════════════════════════════════════════════
+# Export tableur et chiffres clés des modules dans « Mes vues »
+# ═════════════════════════════════════════════════════════════════════════
+def test_csv_export(client):
+    res = client.get("/api/data/sales/clients/export", params={"q": "nova"})
+    assert res.status_code == 200 and res.headers["content-type"].startswith("text/csv")
+    assert "attachment" in res.headers["content-disposition"]
+    lines = res.content.decode("utf-8-sig").splitlines()
+    assert lines[0].split(";")[0] == "Nom" and len(lines) == 2 and lines[1].startswith("Atelier Nova;")
+    assert lines[1].endswith(",00")  # montant à la française (virgule décimale)
+    client.post("/api/data/sales/clients", json={"name": "=HYPERLINK(1)"})
+    assert "'=HYPERLINK(1)" in client.get("/api/data/sales/clients/export").content.decode("utf-8-sig")
+    english = client.get("/api/data/sales/clients/export", params={"lang": "en"}).content.decode("utf-8-sig")
+    assert english.splitlines()[0].startswith("Name,")
+    rows = client.get("/api/data/sales/orders/export", params={"f_status": "confirmed"}).content.decode("utf-8-sig").splitlines()
+    assert len(rows) - 1 == client.get("/api/data/sales/orders?f_status=confirmed").json()["total"]
+    assert all(";Confirmée;" in row for row in rows[1:])
+    make_member("export@test.local", role_id("readonly"), {"sales": 0})
+    assert login_as("export@test.local").get("/api/data/sales/clients/export").status_code == 403
+
+
+def test_module_kpis_in_views(client):
+    from caffein import dashboard
+
+    clean = dashboard.validate_spec({"widgets": [{"source": "kpi", "params": {"metric": "stock.to_reorder"}},
+                                                 {"source": "kpi", "params": {"metric": "inconnu.x"}}]})
+    assert [w["params"]["metric"] for w in clean["widgets"]] == ["stock.to_reorder", "to_collect"]
+    view = client.post("/api/dashboards/render", json={"spec": {"widgets": [{"source": "kpi", "params": {"metric": "stock.to_reorder"}}]}}).json()
+    data = view["widgets"][0]["data"]
+    home = {k["key"]: k for k in client.get("/api/home").json()["kpis"]}
+    assert data["label"][0] == "À réapprovisionner" and data["value"] == home["stock.to_reorder"]["value"] and data["alert"]
+    composed = client.post("/api/dashboards/compose", json={"text": "montre-moi les articles à réapprovisionner"}).json()
+    assert [w["params"].get("metric") for w in composed["view"]["widgets"]] == ["stock.to_reorder"]
+    assert "stock.to_reorder" in client.get("/api/dashboards").json()["catalog"][0]["description"]
+    assert "sales.to_collect" not in dashboard.module_metrics()  # déjà proposé sous son nom historique
+    make_member("kpi@test.local", role_id("readonly"), {"stock": 0})
+    member = login_as("kpi@test.local")
+    hidden = member.post("/api/dashboards/render", json={"spec": {"widgets": [{"source": "kpi", "params": {"metric": "stock.to_reorder"}}]}}).json()
+    assert hidden["widgets"] == [] and hidden["hidden"] == 1
+    assert "stock.to_reorder" not in member.get("/api/dashboards").json()["catalog"][0]["description"]

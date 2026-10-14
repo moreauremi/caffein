@@ -99,7 +99,7 @@ MODULE = Module(
 
 Une entité déclare une table, ses champs, ses lignes, ses actions et ses calculs ; Caffein en tire l'API
 (`/api/data/<module>/<entité>` : liste, recherche, tri, filtres, fiche, création, modification, suppression, actions,
-aperçu des calculs, choix des références) et les écrans (liste, fiche dans un tiroir).
+aperçu des calculs, choix des références, export tableur `…/export`) et les écrans (liste, fiche dans un tiroir).
 
 **Champs** — `Field(name, label, type, …)` :
 
@@ -147,7 +147,8 @@ Un champ `ref` vers un module désactivé disparaît des écrans et de l'API.
   est un écran généré (entité) ou un écran sur mesure du registre de l'interface. Adresse : `/<slug du module>/<slug>`.
 - `Kpi(key, label, compute, unit="count"|"money"|"minutes"|"percent"|"days", foot=("{n} facture(s)", "{n} invoice(s)"),
   icon, path, alert=lambda d: …)` : `compute()` renvoie `{"value": …, "count": …}` ; `path` peut porter un filtre
-  (`/logistique/stock?f_status=reorder`).
+  (`/logistique/stock?f_status=reorder`). Chaque chiffre clé s'affiche sur l'accueil et devient une carte possible
+  de « Mes vues » (« montre-moi les articles à réapprovisionner ») pour qui peut consulter le module.
 - `Shortcut(key, label, path, icon, level=WRITE)` : bouton de l'accueil (`?new=1` ouvre une fiche vierge, et
   `?new=1&client_id=3` la préremplit).
 

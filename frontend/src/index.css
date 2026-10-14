@@ -594,6 +594,7 @@ img, svg { display: block; }
 .badge.inherited { opacity: 0.7; border-style: dashed; }
 
 /* ── Accueil : chiffres clés des modules ─────────────────────────────── */
+.shortcuts { display: flex; flex-wrap: wrap; gap: 8px; margin: -12px 0 22px; }
 .kpi-group-title { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 650; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 10px; }
 .kpi-group-title svg { color: var(--accent); }
 .kpi-link { text-decoration: none; color: inherit; display: block; border-radius: var(--radius-lg); }

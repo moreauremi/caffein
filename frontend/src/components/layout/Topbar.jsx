@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
+import { useEffect } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import { Menu, Moon, Sun } from 'lucide-react'
 import { useLanguage } from '../../context/LanguageContext'
@@ -15,6 +16,12 @@ export default function Topbar({ onMenu }) {
   const { modules } = useMeta()
   const { pathname } = useLocation()
   const current = moduleForPath(modules, pathname)
+  const title = current ? pick(current.label) : ''
+
+  // Titre de l'onglet du navigateur : le module en cours
+  useEffect(() => {
+    document.title = title ? `${title} · Caffein` : 'Caffein'
+  }, [title])
 
   return (
     <header className="topbar">

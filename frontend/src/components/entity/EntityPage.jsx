@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, Plus, Search, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, Download, Plus, Search, X } from 'lucide-react'
 import { useLanguage } from '../../context/LanguageContext'
 import { useMeta } from '../../context/MetaContext'
 import { useApi } from '../../lib/useApi'
@@ -14,6 +14,15 @@ import RefSelect from './RefSelect'
 
 const PAGE_SIZE = 50
 const NUMERIC = ['int', 'decimal', 'money', 'percent']
+
+// Export tableur : mêmes recherche, filtres et tri que la liste affichée, toutes les pages
+function exportQuery(listQuery, language) {
+  const query = new URLSearchParams(listQuery)
+  query.delete('size')
+  query.delete('page')
+  query.set('lang', language)
+  return query.toString()
+}
 
 // Écran généré pour une entité déclarée par un module : liste (recherche, filtres, tri, pages) et fiche.
 // L'état est dans l'adresse (?q=…&f_status=…&sort=…&id=12) : on peut partager un lien vers une fiche ou une liste filtrée.
@@ -46,6 +55,7 @@ export default function EntityPage({ entityKey }) {
     return query.toString()
   }, [params])
   const list = useApi(entity ? `/api/data/${entity.module}/${entity.name}?${listQuery}` : null)
+  const { language } = useLanguage()
 
   if (!entity) return <EmptyState title={t('nav.no_access')} />
 
@@ -131,6 +141,12 @@ export default function EntityPage({ entityKey }) {
         )}
         <span className="grow" />
         {data ? <span className="small muted">{t('entity.count', { n: data.total })}</span> : null}
+        {data?.total ? (
+          <a className="btn sm ghost" title={t('entity.export_hint')} download
+            href={`/api/data/${entity.module}/${entity.name}/export?${exportQuery(listQuery, language)}`}>
+            <Download size={14} /> {t('entity.export')}
+          </a>
+        ) : null}
       </div>
 
       <div className="card flush">

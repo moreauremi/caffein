@@ -288,6 +288,43 @@ def list_rows(entity: Entity, level: int, *, q: str | None = None, filters: dict
     return {"rows": rows, "total": total, "page": page, "size": size}
 
 
+def _csv_value(fld: Field, row: dict, language: str) -> str:
+    """Valeur d'une cellule d'export, mise en forme par le serveur (nombres et dates lisibles par un tableur)."""
+    value = row.get(fld.name)
+    if value is None or value == "":
+        return ""
+    fr = language != "en"
+    if fld.type in ("int", "decimal", "money", "percent"):
+        text = f"{value:.2f}" if fld.type == "money" else f"{value:g}" if isinstance(value, float) else str(value)
+        return text.replace(".", ",") if fr else text
+    if fld.type == "date":
+        d = parse_date(value)
+        return d.strftime("%d/%m/%Y") if d and fr else str(value)
+    if fld.type == "bool":
+        return ("Oui" if value else "Non") if fr else ("Yes" if value else "No")
+    if fld.type == "enum":
+        choice = next((c for c in fld.choices if str(c[0]) == str(value)), None)
+        return choice[1][0 if fr else 1] if choice else str(value)
+    if fld.type == "ref":
+        return str(row.get(f"{fld.name}__label") or f"#{value}")
+    return str(value)
+
+
+def export_rows(entity: Entity, level: int, *, language: str = "fr", limit: int = 10_000, **query) -> tuple[list[str], list[list[str]]]:
+    """Liste filtrée (mêmes recherche, filtres et tri que l'écran) → en-têtes et cellules d'un export tableur."""
+    fields = [f for f in visible_fields(entity, entity.fields, level) if not f.hidden]
+    headers = [f.label[0 if language != "en" else 1] for f in fields]
+    out: list[list[str]] = []
+    page = 1
+    while len(out) < limit:
+        result = list_rows(entity, level, page=page, size=MAX_PAGE, **query)
+        out += [[_csv_value(f, row, language) for f in fields] for row in result["rows"]]
+        if page * MAX_PAGE >= result["total"]:
+            break
+        page += 1
+    return headers, out[:limit]
+
+
 def _strip_hidden(rows: list[dict], entity: Entity, fields: list[Field]) -> None:
     hidden = {f.name for f in entity.fields} - {f.name for f in fields}
     for row in rows:
@@ -739,5 +776,6 @@ def meta(entity: Entity, level: int) -> dict:
 
 __all__ = ["Field", "Child", "Action", "Entity", "ENTITIES", "register", "get", "list_rows", "get_row", "save_row",
            "delete_row", "run_action", "options", "meta", "next_code", "visible_fields", "preview", "ref_label", "usages",
+           "export_rows",
            "REFERENCES",
            "READ", "WRITE", "MANAGE"]

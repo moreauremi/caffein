@@ -7,8 +7,13 @@ de l'action) ; suppression : niveau `delete_level` de l'entité (« gestion » p
 
 from __future__ import annotations
 
+import csv
+import io
+import re
+
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request, Response
 
+from ..utils import today
 from . import entities
 from . import modules as registry
 from .deps import check_access, current_user
@@ -16,6 +21,7 @@ from .errors import NotFound
 from .permissions import READ, WRITE, level_for
 
 router = APIRouter(prefix="/api/data")
+_NUMBER = re.compile(r"^-\d[\d\s.,]*$")
 
 
 def _entity(module: str, name: str) -> entities.Entity:
@@ -40,6 +46,32 @@ def list_rows(module: str, name: str, request: Request, q: str | None = Query(No
     level = _level(user, entity, READ)
     filters = {k[2:]: v for k, v in request.query_params.items() if k.startswith("f_")}
     return entities.list_rows(entity, level, q=q, filters=filters, sort=sort, direction=dir, page=page, size=size)
+
+
+@router.get("/{module}/{name}/export")
+def export(module: str, name: str, request: Request, q: str | None = Query(None, max_length=100),
+           sort: str | None = Query(None, max_length=60), dir: str = Query("asc", pattern="^(asc|desc)$"),
+           lang: str = Query("fr", pattern="^(fr|en)$"), user: dict = Depends(current_user)) -> Response:
+    """Export tableur (CSV) de la liste, avec la recherche, les filtres et le tri de l'écran.
+    Point-virgule et virgule décimale en français (Excel), virgule et point en anglais ; UTF-8 avec BOM."""
+    entity = _entity(module, name)
+    level = _level(user, entity, READ)
+    filters = {k[2:]: v for k, v in request.query_params.items() if k.startswith("f_")}
+    headers, rows = entities.export_rows(entity, level, language=lang, q=q, filters=filters, sort=sort, direction=dir)
+    buffer = io.StringIO()
+    writer = csv.writer(buffer, delimiter=";" if lang == "fr" else ",", lineterminator="\r\n")
+    writer.writerow(headers)
+    writer.writerows([[_safe_cell(v) for v in row] for row in rows])
+    filename = f"{entity.module}-{entity.name}-{today().isoformat()}.csv"
+    return Response("\ufeff" + buffer.getvalue(), media_type="text/csv; charset=utf-8",
+                    headers={"Content-Disposition": f'attachment; filename="{filename}"'})
+
+
+def _safe_cell(value: str) -> str:
+    """Une cellule qui commence par = + - @ serait interprétée comme une formule par un tableur : on la neutralise."""
+    if value and value[0] in "=+@\t\r" or (value.startswith("-") and not _NUMBER.match(value)):
+        return "'" + value
+    return value
 
 
 @router.get("/{module}/{name}/options")

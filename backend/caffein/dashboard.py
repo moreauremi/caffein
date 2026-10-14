@@ -84,9 +84,31 @@ METRIC_MODULES = {
 }
 
 
+# Chiffres clés des modules (Kpi), proposés comme cartes « kpi » : metric = « module.clé ».
+# Ceux qui existent déjà ci-dessus sous un nom historique ne sont pas proposés deux fois.
+LEGACY_KPIS = {"home.time_saved", "sales.to_collect", "sales.overdue", "sales.paid_month", "sales.quotes_pending",
+               "accounting.vat_balance"}
+
+
+def module_metrics(levels: dict[str, int] | None = None) -> dict:
+    """{« stock.to_reorder »: (module, kpi)} pour les modules que l'utilisateur peut consulter (`levels`)."""
+    from .core import modules as registry
+
+    out = {}
+    for module in registry.ordered():
+        if levels is not None and levels.get(module.key, 0) < 1:
+            continue
+        for kpi in module.kpis:
+            key = f"{module.key}.{kpi.key}"
+            if key not in LEGACY_KPIS:
+                out[key] = (module, kpi)
+    return out
+
+
 def widget_module(widget: dict) -> str:
     if widget["source"] == "kpi":
-        return METRIC_MODULES[widget["params"]["metric"]]
+        metric = widget["params"]["metric"]
+        return metric.split(".")[0] if "." in metric else METRIC_MODULES[metric]
     return SOURCE_MODULES[widget["source"]]
 
 
@@ -108,7 +130,8 @@ def _clean_params(source: str, raw: object) -> dict:
     allowed = CATALOG[source]["params"]
     params: dict = {}
     if "metric" in allowed:
-        params["metric"] = raw.get("metric") if raw.get("metric") in METRICS else "to_collect"
+        metric = raw.get("metric")
+        params["metric"] = metric if isinstance(metric, str) and (metric in METRICS or metric in module_metrics()) else "to_collect"
     if "period" in allowed:
         default = "year" if source in ("revenue_by_client", "expenses_by_category") else "last_12_months"
         params["period"] = raw.get("period") if raw.get("period") in PERIODS else default
@@ -184,8 +207,18 @@ def _in_range(value: object, start: date, end: date) -> bool:
     return bool(d and start <= d <= end)
 
 
+def _module_kpi(metric: str) -> dict:
+    """Chiffre clé d'un module, calculé par le module lui-même (mêmes valeurs que sur l'accueil)."""
+    module, kpi = module_metrics()[metric]
+    data = kpi.compute() or {}
+    return {"metric": metric, "value": data.get("value"), "count": data.get("count"), "unit": kpi.unit, "label": kpi.label,
+            "foot": kpi.foot, "icon": kpi.icon, "path": kpi.path, "alert": bool(kpi.alert and kpi.alert(data))}
+
+
 def _kpi(params: dict, ref: date) -> dict:
     metric = params["metric"]
+    if "." in metric:
+        return _module_kpi(metric)
     summary = services.invoice_summary()
     if metric in ("to_collect", "overdue_total", "paid_month", "quotes_pending"):
         count_key = {"to_collect": "to_collect_count", "overdue_total": "overdue_count", "paid_month": "paid_month_count",
@@ -375,9 +408,24 @@ _PERIOD = [
 ]
 
 
-def _matches(folded: str, original: str = "") -> list[dict]:
+def _metric_patterns(levels: dict[str, int] | None) -> list[tuple[str, str]]:
+    """(motif, chiffre clé) : le libellé français ou anglais du chiffre clé, sans accents, cité dans la demande."""
+    out = []
+    for key, (_module, kpi) in module_metrics(levels).items():
+        for label in kpi.label:
+            folded = _fold(label).strip()
+            if len(folded) >= 6:
+                out.append((r"\b" + re.escape(folded) + r"\b", key))
+    return out
+
+
+def _matches(folded: str, original: str = "", levels: dict[str, int] | None = None) -> list[dict]:
     """Cartes demandées, dans l'ordre où la demande les cite."""
     found = []
+    for pattern, metric in _metric_patterns(levels):
+        match = re.search(pattern, folded)
+        if match and not any(w["params"].get("metric") == metric for w in found):
+            found.append({"source": "kpi", "params": {"metric": metric}, "at": match.start()})
     for pattern, widget in _KEYWORDS:
         match = re.search(pattern, folded)
         if match:
@@ -423,7 +471,7 @@ def _refused(message: str, current: dict) -> dict:
     return {"spec": current, "message": message, "understood": False}
 
 
-def compose_offline(text: str, current: dict) -> dict:
+def compose_offline(text: str, current: dict, levels: dict[str, int] | None = None) -> dict:
     """Demande + vue actuelle → nouvelle vue et message d'explication. Sans IA."""
     folded = _fold(text)
     current = validate_spec(current)
@@ -433,7 +481,7 @@ def compose_offline(text: str, current: dict) -> dict:
     if _PREVIOUS.search(folded):
         return _refused("period_unsupported", current)
 
-    found = _matches(folded, text)
+    found = _matches(folded, text, levels)
     if _CLEAR.search(folded) and (not found or re.search(r"\b(?:tout|all|everything)\b", folded)):
         return {"spec": {**current, "widgets": []}, "message": "cleared", "understood": True}
 
@@ -576,8 +624,13 @@ def ai_allowed(key: str) -> bool:
 def catalog(levels: dict[str, int] | None = None) -> list[dict]:
     """Catalogue décrit pour l'IA (et l'API) : sources, visuels et paramètres possibles.
     Avec `levels`, seulement les sources des modules que l'utilisateur peut consulter."""
-    return [{"source": s, "visuals": list(e["visuals"]), "params": list(e["params"]), "description": e["description"]}
-            for s, e in CATALOG.items() if s == "kpi" or levels is None or levels.get(SOURCE_MODULES[s], 0) >= 1]
+    out = [{"source": s, "visuals": list(e["visuals"]), "params": list(e["params"]), "description": e["description"]}
+           for s, e in CATALOG.items() if s == "kpi" or levels is None or levels.get(SOURCE_MODULES[s], 0) >= 1]
+    extra = module_metrics(levels)
+    if extra:
+        out[0] = {**out[0], "description": out[0]["description"] + " ; et les chiffres clés des modules : "
+                  + ", ".join(f"{key} ({kpi.label[0]})" for key, (_m, kpi) in extra.items())}
+    return out
 
 
 def ai_enabled() -> bool:

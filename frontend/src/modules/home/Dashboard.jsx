@@ -4,39 +4,15 @@ import { Link } from 'react-router-dom'
 import { ArrowRight, Bot, CalendarClock, Landmark, Newspaper, Percent, ScanLine } from 'lucide-react'
 import Greeting from '../../components/Greeting'
 import { JOB_ICONS } from '../../components/jobIcons'
+import KpiCard from '../../components/KpiCard'
 import NamedIcon from '../../components/NamedIcon'
 import { EmptyState } from '../../components/ui'
 import { useApp } from '../../context/AppContext'
 import { useAuth } from '../../context/AuthContext'
 import { useLanguage } from '../../context/LanguageContext'
 import { useMeta } from '../../context/MetaContext'
-import { date, daysFromNow, duration, money, number, relative } from '../../lib/format'
+import { date, daysFromNow, money, relative } from '../../lib/format'
 import { useApi } from '../../lib/useApi'
-
-// Chiffre clé d'un module, déjà calculé par le serveur : on ne fait que le mettre en forme
-function kpiValue(kpi, language) {
-  if (kpi.value === null || kpi.value === undefined) return '—'
-  if (kpi.unit === 'money') return money(kpi.value, language)
-  if (kpi.unit === 'minutes') return duration(kpi.value, language)
-  if (kpi.unit === 'percent') return `${number(kpi.value, language, 1)} %`
-  if (kpi.unit === 'days') return `${number(kpi.value, language)} j`
-  return number(kpi.value, language, 2)
-}
-
-function KpiCard({ kpi }) {
-  const { pick, language } = useLanguage()
-  const body = (
-    <div className={`card stat kpi ${kpi.alert ? 'dark' : ''}`}>
-      <div className="stat-label">
-        {kpi.icon ? <span className="stat-icon"><NamedIcon name={kpi.icon} /></span> : null}
-        {pick(kpi.label)}
-      </div>
-      <div className="stat-value">{kpiValue(kpi, language)}</div>
-      {kpi.foot ? <div className="stat-foot">{pick(kpi.foot, { n: kpi.count ?? 0 })}</div> : null}
-    </div>
-  )
-  return kpi.path ? <Link to={kpi.path} className="kpi-link">{body}</Link> : body
-}
 
 export default function Dashboard() {
   const { t, pick, language } = useLanguage()
@@ -64,16 +40,17 @@ export default function Dashboard() {
           <Greeting name={user?.full_name || profile?.full_name} />
           <p className="page-sub">{t('home.subtitle')}</p>
         </div>
-        {data?.shortcuts?.length ? (
-          <div className="row wrap">
-            {data.shortcuts.map((s, i) => (
-              <Link key={s.key} to={s.path} className={`btn ${i === 0 ? 'primary' : ''}`}>
-                {s.icon ? <NamedIcon name={s.icon} /> : null} {pick(s.label)}
-              </Link>
-            ))}
-          </div>
-        ) : null}
       </div>
+
+      {data?.shortcuts?.length ? (
+        <nav className="shortcuts" aria-label={t('home.shortcuts')}>
+          {data.shortcuts.map((s, i) => (
+            <Link key={s.key} to={s.path} className={`btn sm ${i === 0 ? 'primary' : ''}`}>
+              {s.icon ? <NamedIcon name={s.icon} size={15} /> : null} {pick(s.label)}
+            </Link>
+          ))}
+        </nav>
+      ) : null}
 
       {data?.inbox_count > 0 && (
         <div className="alert info" style={{ marginBottom: 18 }}>

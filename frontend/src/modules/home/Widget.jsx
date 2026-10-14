@@ -6,6 +6,7 @@ import {
   AlertTriangle, CalendarClock, Clock3, FileSignature, Landmark, Percent, ReceiptText, TrendingUp, Wallet, X,
 } from 'lucide-react'
 import { BarsChart } from '../../components/charts'
+import KpiCard from '../../components/KpiCard'
 import { EmptyState, InvoiceStatus, StatCard } from '../../components/ui'
 import { useLanguage } from '../../context/LanguageContext'
 import { date, daysFromNow, duration, money } from '../../lib/format'
@@ -22,8 +23,9 @@ const SERIES_COLORS = {
 }
 
 // Titre affiché : celui choisi par l'IA, sinon un titre traduit selon la source et la période
-function widgetTitle(widget, t) {
+function widgetTitle(widget, t, pick) {
   if (widget.title) return widget.title
+  if (widget.source === 'kpi' && widget.data?.label) return pick(widget.data.label)  // chiffre clé d'un module
   if (widget.source === 'kpi') return t(`views.metric.${widget.params.metric}`)
   const base = t(`views.source.${widget.source}`)
   if (widget.source === 'unpaid_invoices' && widget.params.only_overdue) return t('views.source.overdue_invoices')
@@ -31,18 +33,19 @@ function widgetTitle(widget, t) {
 }
 
 function KpiWidget({ widget }) {
-  const { t, language } = useLanguage()
+  const { t, pick, language } = useLanguage()
   const { data, params } = widget
+  if (data.label) return <KpiCard kpi={data} title={widget.title} link={false} />  // chiffre clé d'un module
   const value = data.unit === 'minutes' ? duration(data.value, language) : money(data.value, language)
   const countKey = params.metric === 'quotes_pending' ? 'invoices.n_quotes' : 'views.kpi_count'
   const foot = data.vat_exempt ? t('views.vat_exempt')
     : data.count != null ? t(countKey, { n: data.count }) : t(`views.kpi_foot.${params.metric}`)
-  return <StatCard icon={METRIC_ICONS[params.metric]} label={widgetTitle(widget, t)} value={value} foot={foot}
+  return <StatCard icon={METRIC_ICONS[params.metric]} label={widgetTitle(widget, t, pick)} value={value} foot={foot}
     dark={params.metric === 'overdue_total' && data.value > 0} />
 }
 
 function ChartWidget({ widget }) {
-  const { t, language } = useLanguage()
+  const { t, pick, language } = useLanguage()
   const { data } = widget
   if (!data.rows.length || data.rows.every((r) => data.series.every((s) => !r[s]))) {
     return <EmptyState icon={TrendingUp} title={t('views.no_data')} />
@@ -55,7 +58,7 @@ function ChartWidget({ widget }) {
     return (
       <div className="table-wrap">
         {exempt}
-        <table className="table" aria-label={widgetTitle(widget, t)}>
+        <table className="table" aria-label={widgetTitle(widget, t, pick)}>
           <thead><tr><th>{xLabel || t('chart.period')}</th>{series.map((s) => <th key={s.key} className="right">{s.label}</th>)}</tr></thead>
           <tbody>
             {data.rows.map((row) => (
@@ -72,20 +75,20 @@ function ChartWidget({ widget }) {
   return (
     <>
       {exempt}
-      <BarsChart data={data.rows} xKey={data.x} series={series} height={240} title={widgetTitle(widget, t)} xLabel={xLabel} />
+      <BarsChart data={data.rows} xKey={data.x} series={series} height={240} title={widgetTitle(widget, t, pick)} xLabel={xLabel} />
     </>
   )
 }
 
 function InvoicesWidget({ widget }) {
-  const { t, language } = useLanguage()
+  const { t, pick, language } = useLanguage()
   const { data, source } = widget
   if (!data.rows.length) return <EmptyState title={t(source === 'pending_quotes' ? 'views.no_quotes' : 'views.no_unpaid')} />
   const quotes = source === 'pending_quotes'
   return (
     <>
       <div className="table-wrap">
-        <table className="table" aria-label={widgetTitle(widget, t)}>
+        <table className="table" aria-label={widgetTitle(widget, t, pick)}>
           <thead>
             <tr>
               <th>{t('views.col.client')}</th>
@@ -148,8 +151,8 @@ const BODIES = {
 }
 
 export default function Widget({ widget, onRemove, disabled = false }) {
-  const { t } = useLanguage()
-  const title = widgetTitle(widget, t)
+  const { t, pick } = useLanguage()
+  const title = widgetTitle(widget, t, pick)
   const remove = (
     <button type="button" className="icon-btn widget-remove" onClick={onRemove} disabled={disabled} aria-label={t('views.remove', { title })}
       title={t('views.remove', { title })}>
@@ -158,7 +161,7 @@ export default function Widget({ widget, onRemove, disabled = false }) {
   )
   if (widget.source === 'kpi') {
     // Carte « En retard » inversée (fond sombre) : la croix suit la couleur de la carte
-    const dark = widget.params.metric === 'overdue_total' && widget.data.value > 0
+    const dark = widget.data.alert || (widget.params.metric === 'overdue_total' && widget.data.value > 0)
     return <div className={`widget widget-stat ${dark ? 'on-dark' : ''}`}>{remove}<KpiWidget widget={widget} /></div>
   }
   const Body = BODIES[widget.source]

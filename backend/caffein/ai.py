@@ -687,12 +687,12 @@ def due_date_from(issue: date, days: int | None, default_days: int) -> date:
 #    L'IA choisit des cartes dans un catalogue fermé : elle ne voit jamais les données.
 # ═════════════════════════════════════════════════════════════════════════
 def _dashboard_schema() -> dict:
-    from .dashboard import METRICS, PERIODS, SOURCES, VISUALS
+    from .dashboard import METRICS, PERIODS, SOURCES, VISUALS, module_metrics
 
     params = {
         "type": "object",
         "properties": {
-            "metric": _nullable({"type": "string", "enum": list(METRICS)}),
+            "metric": _nullable({"type": "string", "enum": [*METRICS, *module_metrics()]}),
             "period": _nullable({"type": "string", "enum": list(PERIODS)}),
             "limit": _nullable({"type": "integer"}),
             "only_overdue": _nullable({"type": "boolean"}),
@@ -727,7 +727,7 @@ def _dashboard_schema() -> dict:
 def _dashboard_prompt(catalog: list[dict], ref: date, language: str) -> str:
     sources = "\n".join(f"- {c['source']} (visuels : {', '.join(c['visuals'])}) : {c['description']}" for c in catalog)
     lang = "anglais" if language == "en" else "français"
-    return f"""Tu composes le tableau de bord de Caffein, le logiciel de gestion d'un freelance français.
+    return f"""Tu composes le tableau de bord de Caffein, le logiciel de gestion (ERP) d'une petite entreprise française.
 L'utilisateur dit ce qu'il veut voir ; tu renvoies la vue complète qui en résulte, sous forme de cartes
 choisies UNIQUEMENT dans ce catalogue :
 {sources}
@@ -783,5 +783,5 @@ def compose_dashboard(text: str, current: dict, ref: date, language: str = "fr",
     except AIUnavailable as exc:
         if config.AI_ENABLED:
             log.warning("Composition Claude indisponible (%s), analyse locale", exc)
-        result = dashboard.compose_offline(text, current)
+        result = dashboard.compose_offline(text, current, levels)
         return {**result, "reply": None, "composed_by": "heuristique"}
