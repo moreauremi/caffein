@@ -16,11 +16,11 @@ const DICT = {
   'common.back_home': ['Retour à l’accueil', 'Back to home'],
 
   // ── Connexion & installation ──────────────────────────────────────
-  'auth.title_1': ['Ne faites plus votre admin', 'Stop doing your admin'],
-  'auth.title_2': ['du tout.', 'at all.'],
-  'auth.f1': ['Devis & factures en langage naturel', 'Quotes & invoices in plain language'],
-  'auth.f2': ['Relances d’impayés automatiques', 'Automatic payment reminders'],
-  'auth.f3': ['Tableau de bord URSSAF & TVA', 'URSSAF & VAT dashboard'],
+  'auth.title_1': ['Toute votre entreprise,', 'Your whole company,'],
+  'auth.title_2': ['au même endroit.', 'in one place.'],
+  'auth.f1': ['Ventes, achats, stock et production reliés', 'Sales, purchasing, stock and production, connected'],
+  'auth.f2': ['Des modules et des droits à votre mesure', 'Modules and permissions that fit your team'],
+  'auth.f3': ['Factures en une phrase, TVA et URSSAF suivies', 'Invoices in one sentence, VAT and URSSAF tracked'],
   'auth.side_foot': ['Logiciel libre (AGPL-3.0) · vos données restent sur votre serveur.', 'Free software (AGPL-3.0) · your data stays on your server.'],
   'login.title': ['Connexion', 'Log in'],
   'login.subtitle': ['Accédez à votre espace Caffein.', 'Access your Caffein workspace.'],

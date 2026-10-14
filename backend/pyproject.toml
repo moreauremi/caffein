@@ -1,7 +1,7 @@
 [project]
 name = "caffein"
 version = "2.0.0"
-description = "Gestion libre pour freelances et TPE : devis, factures, relances, TVA et URSSAF"
+description = "ERP libre et modulaire pour petites entreprises : ventes, achats, stock, production, RH, projets, comptabilité"
 license = "AGPL-3.0-or-later"
 requires-python = ">=3.10"
 readme = "../README.md"
