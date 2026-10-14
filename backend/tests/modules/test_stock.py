@@ -46,18 +46,22 @@ def test_manual_movements_follow_their_kind(client):
 
 
 def test_stock_status_and_reorder(client):
-    boxes = _status(client, "Boîte cadeau kraft 22×16 cm")
-    assert boxes["quantity"] == 32 and boxes["status"] == "reorder" and boxes["to_order"] == 100
-    assert boxes["value"] == round(32 * 1.35, 2)
-    kit = _status(client, "Kit papeterie de marque")
-    assert kit["status"] == "ok" and kit["to_order"] is None and kit["value"] > 0
+    # Les quantités dépendent des données de démonstration des autres modules : on les relit
+    name = "Boîte cadeau kraft 22×16 cm"
+    boxes = _status(client, name)
+    quantity = stock.on_hand(article_id(name))
+    assert 0 < quantity < 40 and boxes["quantity"] == quantity and boxes["status"] == "reorder"
+    assert boxes["to_order"] == max(100, 40 - quantity) and boxes["value"] == round(quantity * 1.35, 2)
+    client.post(f"{BASE}/movements", json={"kind": "receipt", "article_id": article_id(name), "quantity": 200})
+    boxes = _status(client, name)
+    assert boxes["status"] == "ok" and boxes["to_order"] is None
     reorder = client.get(f"{BASE}/stock?f_status=reorder").json()
-    assert {r["article_name"] for r in reorder["rows"]} == {"Boîte cadeau kraft 22×16 cm", "Papier de soie (feuille)",
-                                                             "Kakémono 85×200 cm"}
+    assert reorder["rows"] and all(r["quantity"] < r["min_stock"] for r in reorder["rows"])
+    assert name not in {r["article_name"] for r in reorder["rows"]}
     assert "Heure de conception graphique" not in [r["article_name"] for r in client.get(f"{BASE}/stock?size=200").json()["rows"]]
     assert client.post(f"{BASE}/stock", json={}).status_code == 409  # vue : consultation seulement
     kpis = {k["key"]: k for k in client.get("/api/home").json()["kpis"]}
-    assert kpis["stock.to_reorder"]["value"] == 3 and kpis["stock.to_reorder"]["alert"] is True
+    assert kpis["stock.to_reorder"]["value"] == reorder["total"] and kpis["stock.to_reorder"]["alert"] is True
     assert kpis["stock.stock_value"]["value"] > 0
 
 
