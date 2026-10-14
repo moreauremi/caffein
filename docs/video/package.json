@@ -1,0 +1,22 @@
+{
+  "name": "caffein-video-mes-vues",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Vidéo de démonstration de « Mes vues » (Remotion)",
+  "license": "AGPL-3.0-or-later",
+  "type": "module",
+  "scripts": {
+    "studio": "remotion studio src/index.jsx",
+    "render": "remotion render src/index.jsx MesVues out/caffein-mes-vues.mp4 --codec=h264",
+    "still": "remotion still src/index.jsx MesVues out/apercu.png"
+  },
+  "dependencies": {
+    "@fontsource-variable/dm-sans": "5.3.0",
+    "@fontsource/jetbrains-mono": "5.3.0",
+    "@remotion/cli": "4.0.535",
+    "lucide-react": "1.52.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "remotion": "4.0.535"
+  }
+}

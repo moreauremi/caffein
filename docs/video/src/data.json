@@ -1,0 +1,179 @@
+{
+ "_source": "Réponses réelles de POST /api/dashboards/compose sur l'instance de démonstration (connexion POST /api/auth/demo), le 14/10/2026.",
+ "steps": [
+  {
+   "text": "Montre-moi mon chiffre d'affaires par mois et mes factures impayées",
+   "message": "composed",
+   "understood": true,
+   "composed_by": "heuristique",
+   "widgets": [
+    "revenue_by_month",
+    "unpaid_invoices"
+   ]
+  },
+  {
+   "text": "Ajoute le total à encaisser et mes dépenses par catégorie cette année",
+   "message": "added",
+   "understood": true,
+   "composed_by": "heuristique",
+   "widgets": [
+    "revenue_by_month",
+    "unpaid_invoices",
+    "kpi",
+    "expenses_by_category"
+   ]
+  },
+  {
+   "text": "Enlève les impayés",
+   "message": "removed",
+   "understood": true,
+   "composed_by": "heuristique",
+   "widgets": [
+    "revenue_by_month",
+    "kpi",
+    "expenses_by_category"
+   ]
+  },
+  {
+   "text": "Change l'échéance de la facture 14 au 30",
+   "message": "read_only",
+   "understood": false,
+   "composed_by": "heuristique",
+   "widgets": [
+    "revenue_by_month",
+    "kpi",
+    "expenses_by_category"
+   ]
+  }
+ ],
+ "revenue_by_month": [
+  {
+   "label": "nov. 25",
+   "invoiced": 0,
+   "paid": 0
+  },
+  {
+   "label": "déc. 25",
+   "invoiced": 0,
+   "paid": 0
+  },
+  {
+   "label": "janv. 26",
+   "invoiced": 0,
+   "paid": 0
+  },
+  {
+   "label": "févr. 26",
+   "invoiced": 2400.0,
+   "paid": 2400.0
+  },
+  {
+   "label": "mars 26",
+   "invoiced": 2700.0,
+   "paid": 2700.0
+  },
+  {
+   "label": "avr. 26",
+   "invoiced": 2000.0,
+   "paid": 2000.0
+  },
+  {
+   "label": "mai 26",
+   "invoiced": 1800.0,
+   "paid": 1800.0
+  },
+  {
+   "label": "juin 26",
+   "invoiced": 950.0,
+   "paid": 950.0
+  },
+  {
+   "label": "juil. 26",
+   "invoiced": 1700.0,
+   "paid": 1050.0
+  },
+  {
+   "label": "août 26",
+   "invoiced": 5740.0,
+   "paid": 650.0
+  },
+  {
+   "label": "sept. 26",
+   "invoiced": 3900.0,
+   "paid": 5040.0
+  },
+  {
+   "label": "oct. 26",
+   "invoiced": 1260.0,
+   "paid": 420.0
+  }
+ ],
+ "unpaid_invoices": {
+  "rows": [
+   {
+    "id": 8,
+    "number": "CAFFEIN-2026-00008",
+    "client": "Boulangerie Lemoine",
+    "total": 2280.0,
+    "due_date": "2026-09-14",
+    "days_overdue": 30,
+    "status": "overdue"
+   },
+   {
+    "id": 11,
+    "number": "CAFFEIN-2026-00011",
+    "client": "Atelier Nova",
+    "total": 1800.0,
+    "due_date": "2026-10-10",
+    "days_overdue": 4,
+    "status": "overdue"
+   },
+   {
+    "id": 12,
+    "number": "CAFFEIN-2026-00012",
+    "client": "Kairos Conseil",
+    "total": 1440.0,
+    "due_date": "2026-10-24",
+    "days_overdue": 0,
+    "status": "pending"
+   },
+   {
+    "id": 13,
+    "number": "CAFFEIN-2026-00013",
+    "client": "Pixel & Co",
+    "total": 1008.0,
+    "due_date": "2026-11-05",
+    "days_overdue": 0,
+    "status": "pending"
+   }
+  ],
+  "total": 6528.0,
+  "count": 4
+ },
+ "kpi_to_collect": {
+  "value": 6528.0,
+  "count": 4
+ },
+ "expenses_by_category": [
+  {
+   "label": "Logiciels/SaaS",
+   "amount": 930.78
+  },
+  {
+   "label": "Frais fixes",
+   "amount": 720.0
+  },
+  {
+   "label": "Matériel",
+   "amount": 349.17
+  },
+  {
+   "label": "Marketing",
+   "amount": 240.0
+  },
+  {
+   "label": "Transport",
+   "amount": 145.46
+  }
+ ]
+}
