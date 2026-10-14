@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { createContext, useCallback, useContext, useEffect, useState } from 'react'
 import { api } from '../lib/api'
+import { clearStoredViews } from '../lib/viewsStorage'
 
 // Utilisateur connecté + état de l'instance (installation à faire, mode démo).
 const AuthContext = createContext(null)
@@ -46,6 +47,7 @@ export function AuthProvider({ children }) {
 
   const signOut = useCallback(async () => {
     await api.post('/api/auth/logout').catch(() => {})
+    clearStoredViews()
     setState((s) => ({ ...s, user: null }))
   }, [])
 

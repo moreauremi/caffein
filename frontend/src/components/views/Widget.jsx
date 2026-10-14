@@ -34,7 +34,9 @@ function KpiWidget({ widget }) {
   const { t, language } = useLanguage()
   const { data, params } = widget
   const value = data.unit === 'minutes' ? duration(data.value, language) : money(data.value, language)
-  const foot = data.count != null ? t('views.kpi_count', { n: data.count }) : t(`views.kpi_foot.${params.metric}`)
+  const countKey = params.metric === 'quotes_pending' ? 'invoices.n_quotes' : 'views.kpi_count'
+  const foot = data.vat_exempt ? t('views.vat_exempt')
+    : data.count != null ? t(countKey, { n: data.count }) : t(`views.kpi_foot.${params.metric}`)
   return <StatCard icon={METRIC_ICONS[params.metric]} label={widgetTitle(widget, t)} value={value} foot={foot}
     dark={params.metric === 'overdue_total' && data.value > 0} />
 }
@@ -46,11 +48,13 @@ function ChartWidget({ widget }) {
     return <EmptyState icon={TrendingUp} title={t('views.no_data')} />
   }
   const series = data.series.map((key) => ({ key, label: t(`views.series.${key}`), color: SERIES_COLORS[key] }))
+  const exempt = data.vat_exempt ? <p className="small muted" style={{ marginBottom: 12 }}>{t('views.vat_exempt')}</p> : null
   const xLabel = widget.source === 'revenue_by_client' ? t('views.col.client')
     : widget.source === 'expenses_by_category' ? t('views.col.category') : undefined
   if (widget.visual === 'table') {
     return (
       <div className="table-wrap">
+        {exempt}
         <table className="table" aria-label={widgetTitle(widget, t)}>
           <thead><tr><th>{xLabel || t('chart.period')}</th>{series.map((s) => <th key={s.key} className="right">{s.label}</th>)}</tr></thead>
           <tbody>
@@ -65,7 +69,12 @@ function ChartWidget({ widget }) {
       </div>
     )
   }
-  return <BarsChart data={data.rows} xKey={data.x} series={series} height={240} title={widgetTitle(widget, t)} xLabel={xLabel} />
+  return (
+    <>
+      {exempt}
+      <BarsChart data={data.rows} xKey={data.x} series={series} height={240} title={widgetTitle(widget, t)} xLabel={xLabel} />
+    </>
+  )
 }
 
 function InvoicesWidget({ widget }) {
@@ -138,17 +147,19 @@ const BODIES = {
   unpaid_invoices: InvoicesWidget, pending_quotes: InvoicesWidget, deadlines: DeadlinesWidget,
 }
 
-export default function Widget({ widget, onRemove }) {
+export default function Widget({ widget, onRemove, disabled = false }) {
   const { t } = useLanguage()
   const title = widgetTitle(widget, t)
   const remove = (
-    <button type="button" className="icon-btn widget-remove" onClick={onRemove} aria-label={t('views.remove', { title })}
+    <button type="button" className="icon-btn widget-remove" onClick={onRemove} disabled={disabled} aria-label={t('views.remove', { title })}
       title={t('views.remove', { title })}>
       <X size={16} />
     </button>
   )
   if (widget.source === 'kpi') {
-    return <div className="widget widget-stat">{remove}<KpiWidget widget={widget} /></div>
+    // Carte « En retard » inversée (fond sombre) : la croix suit la couleur de la carte
+    const dark = widget.params.metric === 'overdue_total' && widget.data.value > 0
+    return <div className={`widget widget-stat ${dark ? 'on-dark' : ''}`}>{remove}<KpiWidget widget={widget} /></div>
   }
   const Body = BODIES[widget.source]
   return (

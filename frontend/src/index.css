@@ -488,15 +488,25 @@ img, svg { display: block; }
 .ask-input::placeholder { color: var(--subtle); }
 .ask:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 .ask-examples { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+.ask-examples .chip { height: auto; min-height: 30px; padding-block: 5px; text-align: left; }
+.ask-input[readonly] { color: var(--muted); }
+.views-saved { min-width: 0; max-width: 100%; }
+.view-chip { max-width: 240px; }
+.view-chip-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ask-feedback { margin-top: 14px; }
 .views-bar { margin: 22px 0 14px; gap: 12px; }
-.widget-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 16px; align-items: start; }
+.widget-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 16px; align-items: start; grid-auto-flow: dense; }
 .widget { position: relative; grid-column: span 6; animation: rise 0.35s ease both; min-width: 0; }
 .widget-stat { grid-column: span 3; }
-.widget-stat .card { height: 100%; }
 .widget-stat .widget-remove { position: absolute; top: 10px; right: 10px; z-index: 1; }
-.widget-remove { opacity: 0.55; }
-.widget:hover .widget-remove, .widget-remove:focus-visible { opacity: 1; }
+.widget-remove { color: var(--muted); }
+.widget-stat.on-dark .widget-remove { color: var(--ink-dark-fg); }
+.widget-remove:disabled { cursor: default; }
+/* Croix plus discrète au repos, seulement avec une souris (sur écran tactile, il n'y a pas de survol) */
+@media (hover: hover) {
+  .widget-remove { opacity: 0.8; }
+  .widget:hover .widget-remove, .widget-remove:focus-visible { opacity: 1; }
+}
 .widget .card-title { margin: 0; }
 .views-note { margin-top: 18px; }
 @media (max-width: 1020px) { .widget-stat { grid-column: span 6; } }

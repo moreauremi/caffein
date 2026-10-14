@@ -562,7 +562,7 @@ def notifications_ingest(payload: dict = Body(...), user: dict = Depends(current
 
 # ── Tableau de bord à la demande (« Mes vues ») ──────────────────────────
 @api.post("/dashboards/compose")
-def dashboard_compose(payload: dict = Body(...)) -> dict:
+def dashboard_compose(request: Request, payload: dict = Body(...), user: dict = Depends(current_user)) -> dict:
     """Demande en langage naturel + vue actuelle → nouvelle vue, avec ses données (lecture seule)."""
     text = str(payload.get("text", "")).strip()
     if len(text) < 3:
@@ -570,7 +570,10 @@ def dashboard_compose(payload: dict = Body(...)) -> dict:
     if len(text) > dashboard.MAX_PROMPT:
         raise ValueError(f"Demande trop longue ({dashboard.MAX_PROMPT} caractères au plus).")
     language = "en" if payload.get("language") == "en" else "fr"
-    result = ai.compose_dashboard(text, payload.get("spec") or {}, today(), language)
+    # Quota d'appels à l'IA par utilisateur (et par adresse IP en démo, où tous partagent le même compte)
+    quota_key = f"{user['id']}|{_client_ip(request)}" if user.get("is_demo") else str(user["id"])
+    allow_ai = config.AI_ENABLED and dashboard.ai_allowed(quota_key)
+    result = ai.compose_dashboard(text, payload.get("spec") or {}, today(), language, allow_ai=allow_ai)
     return {"view": dashboard.render(result["spec"]), "understood": result["understood"], "reply": result.get("reply"),
             "message": result.get("message"), "composed_by": result["composed_by"]}
 

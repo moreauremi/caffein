@@ -189,8 +189,8 @@ def test_compose_with_ai_is_validated(client, monkeypatch):
 
     # L'IA ne reçoit que la demande, le catalogue et la vue : aucune donnée de l'entreprise
     system, content, schema = calls[0]
-    assert content == "mon CA sur 6 mois"
-    assert "Atelier Nova" not in system and "CAFFEIN-2026" not in system
+    assert content.endswith("<demande>mon CA sur 6 mois</demande>") and content.startswith("<vue_actuelle>")
+    assert "Atelier Nova" not in system + content and "CAFFEIN-2026" not in system + content
     assert schema["properties"]["widgets"]["items"]["properties"]["source"]["enum"] == list(dashboard.SOURCES)
 
 
@@ -215,3 +215,181 @@ def test_compose_falls_back_offline_when_ai_fails(client, monkeypatch):
     monkeypatch.setattr(ai, "_json_call", broken)
     body = client.post("/api/dashboards/compose", json={"text": "mes devis en attente"}).json()
     assert body["composed_by"] == "heuristique" and [w["source"] for w in body["view"]["widgets"]] == ["pending_quotes"]
+
+
+
+# ── Corrections de la relecture ──────────────────────────────────────────
+def test_validate_spec_survives_crafted_values():
+    spec = dashboard.validate_spec({"title": {"x": 1}, "widgets": [
+        {"source": ["kpi"]}, {"source": {"x": 1}}, {"source": None},
+        {"source": "unpaid_invoices", "title": ["x"], "params": {"limit": float("inf")}},
+        {"source": "pending_quotes", "params": {"limit": True}},
+    ] + [{"source": "deadlines"}] * 100_000})
+    assert [w["source"] for w in spec["widgets"]] == ["unpaid_invoices", "pending_quotes", "deadlines"]
+    assert spec["title"] == "" and spec["widgets"][0]["title"] == "" and spec["widgets"][0]["params"]["limit"] == 8
+    assert spec["widgets"][1]["params"]["limit"] == 8
+
+
+def test_api_rejects_nothing_with_500(client):
+    for raw in ('{"spec": {"widgets": [{"source": ["kpi"]}]}}',
+                '{"spec": {"widgets": [{"source": "unpaid_invoices", "params": {"limit": 1e999}}]}}',
+                '{"spec": {"widgets": [{"source": "unpaid_invoices", "params": {"limit": Infinity}}]}}'):
+        for path in ("/api/dashboards/render", "/api/dashboards/compose"):
+            body = raw if path.endswith("render") else raw[:-1] + ', "text": "mes devis"}'
+            res = client.post(path, content=body, headers={"Content-Type": "application/json"})
+            assert res.status_code == 200, (path, raw, res.text)
+    res = client.post("/api/dashboards", content='{"name": "x", "spec": {"widgets": [{"source": ["kpi"]}]}}',
+                      headers={"Content-Type": "application/json"})
+    assert res.status_code == 400
+
+
+@pytest.mark.parametrize("text", [
+    "supprime la facture CAFFEIN-2026-00004",
+    "supprime la facture n° CAFFEIN-2026-00004",
+    "supprime le devis DEVIS-2026-00002",
+    "supprime la facture de Kairos",
+    "pourrais-tu supprimer la facture 2026-00004",
+    "change le client de la facture 3",
+    "envoie la facture à Atelier Nova",
+    "crée une facture pour Atelier Nova",
+])
+def test_offline_refuses_real_records(text):
+    current = dashboard.compose_offline("mon chiffre d'affaires et mes impayés", {})["spec"]
+    res = dashboard.compose_offline(text, current)
+    assert res["message"] == "read_only" and res["spec"] == current
+
+
+@pytest.mark.parametrize("text, expected", [
+    ("Montre-moi mes factures 2026", ["revenue_by_month"]),
+    ("Mon CA par client 2025", ["revenue_by_client"]),
+    ("mes devis 2026", ["pending_quotes"]),
+    ("Crée une vue avec mon CA", ["revenue_by_month"]),
+    ("Change la vue pour afficher mes dépenses", ["expenses_by_category"]),
+    ("Mets à jour la vue avec la TVA", ["vat_by_month"]),
+])
+def test_offline_does_not_refuse_display_requests(text, expected):
+    res = dashboard.compose_offline(text, {})
+    assert res["understood"] and sources(res["spec"]) == expected, res
+
+
+def test_offline_switch_clear_and_remove():
+    view = dashboard.compose_offline("mon CA, mes impayés et mes dépenses", {})["spec"]
+    assert sources(view) == ["revenue_by_month", "unpaid_invoices", "expenses_by_category"]
+    res = dashboard.compose_offline("Modifie le graphique en tableau", view)
+    assert res["message"] == "changed" and {w["visual"] for w in res["spec"]["widgets"]} == {"table"}
+    res = dashboard.compose_offline("passe les dépenses en graphique", res["spec"])
+    assert [w["visual"] for w in res["spec"]["widgets"]] == ["table", "table", "bar"]
+    res = dashboard.compose_offline("efface le CA", view)
+    assert res["message"] == "removed" and sources(res["spec"]) == ["unpaid_invoices", "expenses_by_category"]
+    assert dashboard.compose_offline("vide les impayés", view)["message"] == "removed"
+    assert dashboard.compose_offline("enlève tout", view)["spec"]["widgets"] == []
+
+
+@pytest.mark.parametrize("text, expected", [
+    ("calculate my revenue", [("revenue_by_month", None)]),
+    ("show my latest revenue", [("revenue_by_month", None)]),
+    ("Mes dépenses ce mois-ci", [("expenses_by_category", None)]),
+    ("Revenue by customer", [("revenue_by_client", None)]),
+    ("My top customers", [("revenue_by_client", None)]),
+    ("How much do I have left to collect?", [("kpi", "to_collect")]),
+    ("Quel est mon solde de TVA ?", [("kpi", "vat_balance")]),
+    ("Mon CA de l'année", [("kpi", "revenue_year")]),
+    ("Mes encaissements du mois", [("kpi", "paid_month")]),
+    ("le total en retard", [("kpi", "overdue_total")]),
+    ("combien de devis en attente", [("kpi", "quotes_pending")]),
+])
+def test_offline_more_phrasings(text, expected):
+    widgets = dashboard.compose_offline(text, {})["spec"]["widgets"]
+    assert [(w["source"], w["params"].get("metric")) for w in widgets] == expected
+
+
+def test_offline_periods_and_limits():
+    assert dashboard.compose_offline("comment ca va", {})["message"] == "not_understood"
+    for text in ("Mon CA de l'année dernière", "Revenue last year", "Sales last quarter", "mes dépenses du mois dernier"):
+        assert dashboard.compose_offline(text, {})["message"] == "period_unsupported", text
+    client = dashboard.compose_offline("Mon chiffre d'affaires par client sur les 6 derniers mois", {})["spec"]["widgets"][0]
+    assert client["params"] == {"period": "last_6_months", "limit": 8}
+    assert dashboard.compose_offline("mes 3 meilleurs clients", {})["spec"]["widgets"][0]["params"]["limit"] == 3
+    default = dashboard.compose_offline("show me an overview of my sales", {})["spec"]["widgets"][0]
+    assert default["params"]["period"] == "last_12_months"
+
+
+def test_ranges_on_fixed_dates():
+    from datetime import date
+
+    assert dashboard._range("quarter", date(2026, 10, 14)) == (date(2026, 10, 1), date(2026, 12, 31))
+    assert dashboard._range("quarter", date(2027, 1, 10)) == (date(2027, 1, 1), date(2027, 3, 31))
+    assert dashboard._range("year", date(2026, 12, 31)) == (date(2026, 1, 1), date(2026, 12, 31))
+    assert dashboard._range("last_6_months", date(2027, 1, 10)) == (date(2026, 8, 1), date(2027, 1, 31))
+    months = dashboard._months("last_12_months", date(2027, 1, 10))
+    assert len(months) == 12 and months[0] == date(2026, 2, 1) and months[-1] == date(2027, 1, 1)
+
+
+def test_kpis_match_other_pages(demo):
+    from caffein import services
+
+    view = dashboard.render({"widgets": [{"source": "kpi", "params": {"metric": m}} for m in dashboard.METRICS]})
+    values = {w["params"]["metric"]: w["data"]["value"] for w in view["widgets"]}
+    summary = services.invoice_summary()
+    assert values["paid_month"] == summary["paid_month"] and values["quotes_pending"] == summary["quotes_pending"]
+    assert values["time_saved"] == services.time_saved_minutes()
+    assert values["vat_balance"] == services.home_dashboard()["stats"]["balance"]
+    assert values["revenue_year"] == services.urssaf_dashboard()["ca_year"]
+
+
+def test_clients_with_same_name_stay_separate(demo):
+    from caffein import db
+
+    db.execute("UPDATE clients SET name = 'Martin' WHERE name IN ('Atelier Nova', 'Kairos Conseil')")
+    rows = dashboard.render({"widgets": [{"source": "revenue_by_client", "params": {"limit": 20}}]})["widgets"][0]["data"]["rows"]
+    labels = [r["label"] for r in rows]
+    assert labels.count("Martin") == 1 and "Martin (2)" in labels
+
+
+def test_vat_cards_flag_exemption(demo):
+    from caffein import services
+
+    services.update_profile({"vat_exempt": True})
+    view = dashboard.render({"widgets": [{"source": "kpi", "params": {"metric": "vat_balance"}}, {"source": "vat_by_month"}]})
+    assert all(w["data"]["vat_exempt"] for w in view["widgets"])
+
+
+def test_saved_views_limit_is_enforced(demo):
+    from caffein import db
+
+    db.execute("DELETE FROM dashboard_views WHERE user_id = ?", (demo["id"],))
+    spec = {"widgets": [{"source": "deadlines"}]}
+    for i in range(dashboard.MAX_VIEWS):
+        dashboard.create_view(demo["id"], {"name": f"Vue {i}", "spec": spec})
+    with pytest.raises(services.Conflict):
+        dashboard.create_view(demo["id"], {"name": "De trop", "spec": spec})
+    db.execute("DELETE FROM dashboard_views WHERE user_id = ?", (demo["id"],))
+
+
+def test_migration_from_v2(tmp_path, monkeypatch):
+    import sqlite3
+
+    from caffein import config, db
+
+    monkeypatch.setattr(config, "DB_PATH", tmp_path / "v2.db")
+    with sqlite3.connect(tmp_path / "v2.db") as conn:
+        conn.executescript(f"{db.SCHEMA_V1}\n{db.SCHEMA_V2}\nPRAGMA user_version = 2;")
+    db.init_db()
+    assert db.schema_version() == 3
+    assert db.fetch_all("SELECT * FROM dashboard_views") == []
+
+
+def test_ai_quota_falls_back_offline(client, monkeypatch):
+    from caffein import ai, config
+
+    calls = []
+    monkeypatch.setattr(config, "AI_ENABLED", True)
+    monkeypatch.setattr(ai, "_json_call", lambda *a, **k: calls.append(1) or {
+        "understood": True, "reply": "", "title": "", "widgets": [{"source": "deadlines", "visual": "list", "title": "",
+                                                                   "params": {"metric": None, "period": None, "limit": None, "only_overdue": None}}]})
+    monkeypatch.setattr(dashboard, "_ai_calls", {})
+    bodies = [client.post("/api/dashboards/compose", json={"text": "mes devis en attente"}).json()
+              for _ in range(dashboard.AI_CALLS_PER_MINUTE + 2)]
+    assert len(calls) == dashboard.AI_CALLS_PER_MINUTE
+    assert bodies[0]["composed_by"] == "claude" and bodies[0]["message"] == "composed" and bodies[0]["reply"] is None
+    assert bodies[-1]["composed_by"] == "heuristique"

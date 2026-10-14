@@ -15,6 +15,8 @@ s'appuient sur la logique métier de `services.py`. Voir docs/tableau-de-bord-ia
 from __future__ import annotations
 
 import re
+import threading
+import time
 import unicodedata
 from datetime import date
 
@@ -41,7 +43,7 @@ CATALOG: dict[str, dict] = {
     },
     "revenue_by_month": {
         "visuals": ("bar", "table"), "default_visual": "bar", "params": ("period",),
-        "description": "chiffre d'affaires HT facturé et encaissé, mois par mois (period : last_6_months, last_12_months ou year)",
+        "description": "chiffre d'affaires HT facturé et encaissé, mois par mois (period : last_6_months, last_12_months, quarter ou year)",
     },
     "revenue_by_client": {
         "visuals": ("bar", "table"), "default_visual": "bar", "params": ("period", "limit"),
@@ -89,9 +91,10 @@ def _clean_params(source: str, raw: object) -> dict:
         default = "year" if source in ("revenue_by_client", "expenses_by_category") else "last_12_months"
         params["period"] = raw.get("period") if raw.get("period") in PERIODS else default
     if "limit" in allowed:
+        value = raw.get("limit")
         try:
-            limit = int(raw.get("limit") or 0)
-        except (TypeError, ValueError):
+            limit = 0 if isinstance(value, bool) else int(value or 0)
+        except (TypeError, ValueError, OverflowError):  # « Infinity », 1e999…
             limit = 0
         params["limit"] = min(max(limit, 1), 20) if limit else 8
     if "only_overdue" in allowed:
@@ -105,10 +108,11 @@ def validate_spec(spec: object) -> dict:
     spec = spec if isinstance(spec, dict) else {}
     widgets, seen = [], set()
     raw_widgets = spec.get("widgets") if isinstance(spec.get("widgets"), list) else []
-    for raw in raw_widgets:
-        if not isinstance(raw, dict) or raw.get("source") not in CATALOG:
+    # Les cartes au-delà de 8 sont ignorées ; on n'en examine pas plus de 64 (doublons compris)
+    for raw in raw_widgets[: MAX_WIDGETS * 8]:
+        source = raw.get("source") if isinstance(raw, dict) else None
+        if not isinstance(source, str) or source not in CATALOG:
             continue
-        source = raw["source"]
         entry = CATALOG[source]
         visual = raw.get("visual") if raw.get("visual") in entry["visuals"] else entry["default_visual"]
         params = _clean_params(source, raw.get("params"))
@@ -116,10 +120,11 @@ def validate_spec(spec: object) -> dict:
         if key in seen:
             continue
         seen.add(key)
-        widgets.append({"source": source, "visual": visual, "title": _clean_text(raw.get("title")), "params": params})
+        title = raw.get("title") if isinstance(raw.get("title"), str) else ""
+        widgets.append({"source": source, "visual": visual, "title": _clean_text(title), "params": params})
         if len(widgets) == MAX_WIDGETS:
             break
-    return {"title": _clean_text(spec.get("title")), "widgets": widgets}
+    return {"title": _clean_text(spec.get("title") if isinstance(spec.get("title"), str) else ""), "widgets": widgets}
 
 
 # ═════════════════════════════════════════════════════════════════════════
@@ -129,9 +134,9 @@ def _range(period: str, ref: date) -> tuple[date, date]:
     if period == "month":
         p = fiscal.tva_period("month", ref)
         return p.start, p.end
-    if period == "quarter":
-        p = fiscal.tva_period("quarter", ref)
-        return p.start, p.end
+    if period == "quarter":  # trimestre civil en cours (janvier-mars, avril-juin…)
+        start = date(ref.year, 3 * ((ref.month - 1) // 3) + 1, 1)
+        return start, month_end(add_months(start, 2))
     if period == "year":
         return date(ref.year, 1, 1), date(ref.year, 12, 31)
     months = 6 if period == "last_6_months" else 12
@@ -176,7 +181,8 @@ def _kpi(params: dict, ref: date) -> dict:
                 collected += d["tva"] or 0
             else:
                 deductible += d["tva"] or 0
-        return {"metric": metric, "value": round(collected - deductible, 2), "count": None, "unit": "money"}
+        return {"metric": metric, "value": round(collected - deductible, 2), "count": None, "unit": "money",
+                "vat_exempt": bool(services.get_profile()["vat_exempt"])}
     return {"metric": metric, "value": services.time_saved_minutes(), "count": None, "unit": "minutes"}
 
 
@@ -194,12 +200,17 @@ def _revenue_by_month(params: dict, ref: date) -> dict:
 
 def _revenue_by_client(params: dict, ref: date) -> dict:
     start, end = _range(params["period"], ref)
-    totals: dict[str, float] = {}
+    totals: dict[object, list] = {}  # client (id, ou nom à défaut) → [nom, total]
     for inv in _issued_invoices():
         if _in_range(inv["issued_at"], start, end):
-            name = inv.get("client_name") or "—"
-            totals[name] = totals.get(name, 0) + inv["subtotal"]
-    rows = [{"label": name, "amount": round(total, 2)} for name, total in sorted(totals.items(), key=lambda x: -x[1])]
+            key = inv.get("client_id") or inv.get("client_name") or "—"
+            entry = totals.setdefault(key, [inv.get("client_name") or "—", 0.0])
+            entry[1] += inv["subtotal"]
+    rows, seen = [], {}
+    for name, total in sorted(totals.values(), key=lambda x: -x[1]):
+        # deux clients du même nom restent deux lignes (les libellés servent de clés au graphique)
+        seen[name] = seen.get(name, 0) + 1
+        rows.append({"label": name if seen[name] == 1 else f"{name} ({seen[name]})", "amount": round(total, 2)})
     return {"x": "label", "series": ["amount"], "rows": rows[: params["limit"]]}
 
 
@@ -236,7 +247,8 @@ def _vat_by_month(params: dict, ref: date) -> dict:
             "collected": round(sum(d["tva"] or 0 for d in bucket if d["tva_type"] == "collected"), 2),
             "deductible": round(sum(d["tva"] or 0 for d in bucket if d["tva_type"] == "deductible"), 2),
         })
-    return {"x": "label", "series": ["collected", "deductible"], "rows": rows}
+    return {"x": "label", "series": ["collected", "deductible"], "rows": rows,
+            "vat_exempt": bool(services.get_profile()["vat_exempt"])}
 
 
 def _pending_quotes(params: dict, ref: date) -> dict:
@@ -278,54 +290,104 @@ def _fold(text: str) -> str:
     return "".join(c for c in text if not unicodedata.combining(c))
 
 
-# Ordre important : le plus précis d'abord (« TVA » avant « mois », « par client » avant « chiffre d'affaires »)
+# « CA » = chiffre d'affaires s'il est écrit en majuscules, ou précédé d'un déterminant, ou suivi d'un
+# qualificatif. Sinon « ca » est souvent « ça » tapé sans cédille (« comment ca va »).
+_CA_UPPER = re.compile(r"\bCA\b")
+_CA_FOLDED = re.compile(r"\b(?:mon|le|du|de|notre|son|ton|votre|leur)\s+ca\b|\bca\s+(?:par|ht|ttc|encaiss|factur|mensuel|annuel|sur|du|de|des)\b")
+_REVENUE_WORDS = r"chiffre d'affaires|\brevenus?\b|\bventes\b|turnover|revenue|\bsales\b"
+
+# Ordre important : les chiffres clés avant les graphiques, le plus précis d'abord
 _KEYWORDS: list[tuple[str, dict]] = [
+    (r"(?:total|combien|montant)\b[^.?!]{0,20}\ba encaisser|(?:how much|amount)(?: is)?(?: left)? to collect|left to collect|owed to me",
+     {"source": "kpi", "params": {"metric": "to_collect"}}),
+    (r"(?:total|combien|montant)\b[^.?!]{0,25}(?:en retard|overdue)", {"source": "kpi", "params": {"metric": "overdue_total"}}),
+    (r"(?:total|combien|montant)\b[^.?!]{0,25}\bdevis|(?:total|value) of (?:my )?(?:pending )?quotes",
+     {"source": "kpi", "params": {"metric": "quotes_pending"}}),
+    (r"solde de (?:la )?tva|tva a (?:payer|reverser)|vat balance|vat (?:due|to pay)", {"source": "kpi", "params": {"metric": "vat_balance"}}),
+    (r"\bca (?:encaisse )?(?:de l'annee|annuel)|chiffre d'affaires (?:encaisse )?(?:de l'annee|annuel)|revenue (?:this|for the) year|annual revenue",
+     {"source": "kpi", "params": {"metric": "revenue_year"}}),
+    (r"encaiss\w*\b[^.?!]{0,20}\bce mois|encaissements? du mois|(?:paid|collected) this month", {"source": "kpi", "params": {"metric": "paid_month"}}),
+    (r"temps gagne|time saved|gagne du temps", {"source": "kpi", "params": {"metric": "time_saved"}}),
     (r"\btva\b|\bvat\b", {"source": "vat_by_month"}),
     (r"echeance|deadline|urssaf|declaration", {"source": "deadlines"}),
-    (r"devis|quote", {"source": "pending_quotes"}),
-    (r"depense|charge|achat|frais|expense|cost", {"source": "expenses_by_category"}),
-    (r"\b(par|top|meilleurs?|principaux|gros|by|best|biggest)\b(\s+\S+){0,3}\s+clients?\b|clients?\s+(qui|les plus)",
-     {"source": "revenue_by_client"}),
-    (r"en retard|retards?\b|overdue|late", {"source": "unpaid_invoices", "params": {"only_overdue": True}}),
-    (r"impaye|(?<!total )(?<!combien )(?<!montant )a encaisser|non paye|unpaid|attente de paiement", {"source": "unpaid_invoices"}),
-    (r"(total|combien|montant)\b[^.?!]{0,20}\ba encaisser|how much (is )?(left )?to collect",
-     {"source": "kpi", "params": {"metric": "to_collect"}}),
-    (r"temps gagne|time saved|gagne du temps", {"source": "kpi", "params": {"metric": "time_saved"}}),
-    (r"encaisse ce mois|paid this month|ce mois-ci", {"source": "kpi", "params": {"metric": "paid_month"}}),
-    (r"chiffre d'affaires|\bca\b|revenus?|ventes|turnover|revenue|sales|factur", {"source": "revenue_by_month"}),
+    (r"devis|quotes?\b", {"source": "pending_quotes"}),
+    (r"depense|\bcharges?\b|\bachats?\b|\bfrais\b|expense|\bcosts?\b", {"source": "expenses_by_category"}),
+    (r"\b(?:par|top|meilleurs?|principaux|gros|by|best|biggest)\b(?:\s+\S+){0,3}\s+(?:clients?|customers?)\b"
+     r"|(?:clients?|customers?)\s+(?:qui|les plus)|clientele", {"source": "revenue_by_client"}),
+    (r"en retard|\bretards?\b|overdue|\blate\b", {"source": "unpaid_invoices", "params": {"only_overdue": True}}),
+    (r"impaye|non paye|unpaid|attente de paiement|a encaisser", {"source": "unpaid_invoices"}),
+    (_REVENUE_WORDS + r"|factur", {"source": "revenue_by_month"}),
 ]
-# Cette page ne fait qu'afficher : une demande de modification est refusée, pas interprétée
-_MODIFY = re.compile(r"^\s*(change|modifie|corrige|mets? a jour|renomme|cree|envoie|relance|annule|paye|marque|valide|"
-                     r"duplique|convertis|update|edit|create|send|cancel|mark|rename)\b")
-_RECORD = re.compile(r"\b(facture|devis|client|document|invoice|quote)s?\s+(n°|no|numero|#)?\s*\d+")
-_CLEAR = re.compile(r"^\s*(efface|vide|reinitialise|recommence|repars de zero|clear|reset|start over)\b")
-_REMOVE = re.compile(r"^\s*(enleve|retire|supprime|cache|masque|vire|remove|hide|delete)\b")
-_ADD = re.compile(r"^\s*(ajoute|rajoute|mets aussi|affiche aussi|montre aussi|et aussi|add|also show)\b|\baussi\b|\ben plus\b")
-_TABLE = re.compile(r"\b(tableau|liste|table|list|detail)\b")
+_MONTHLY = re.compile(r"par mois|mensuel|mois par mois|evolution|graphique|courbe|by month|monthly|chart|trend")
+_DETAIL = re.compile(r"\b(?:liste|tableau|detail|lesquel|lesquelles|quels|quelles|lister|list|table|which)\b|\bfactures\b")
+
+# Cette page ne fait qu'afficher : une demande qui touche aux données est refusée, pas interprétée.
+# Un numéro de pièce (« facture 12 », « facture CAFFEIN-2026-00004 ») désigne une donnée ;
+# « mes factures 2026 » désigne une année.
+_RECORD = re.compile(r"\b(?:facture|devis|client|document|invoice|quote)s?\s+(?:n°|no\.?|numero|#)?\s*"
+                     r"(?!(?:19|20)\d{2}\b(?!-))[a-z]*-?\d[\w-]*")
+_SINGLE_RECORD = re.compile(r"\b(?:la|cette|une) facture\b|\b(?:le|ce|un) (?:devis|client|document)\b|\bthis (?:invoice|quote|client)\b")
+_VIEW_OBJECT = r"\b(?:vue|view|graphique|graph|chart|tableau|table|carte|cartes|card|affichage|page)\b"
+_MODIFY = re.compile(r"^\s*(?:change|modifie|corrige|mets? a jour|renomme|cree|paye|marque|valide|annule|duplique|convertis|"
+                     r"update|edit|create|cancel|mark|rename|pay)\b(?![^.?!]{0,40}" + _VIEW_OBJECT + ")")
+_ACTION = re.compile(r"^\s*(?:envoie|relance|send|remind|email)\b")
+_CLEAR = re.compile(r"^\s*(?:efface|vide|reinitialise|recommence|repars de zero|clear|reset|start over)\b"
+                    r"|^\s*(?:enleve|retire|supprime|remove|delete)\s+(?:tout|toutes les cartes|all|everything)\b")
+_REMOVE = re.compile(r"^\s*(?:enleve|retire|supprime|cache|masque|vire|efface|vide|remove|hide|delete)\b")
+_ADD = re.compile(r"^\s*(?:ajoute|rajoute|mets aussi|affiche aussi|montre aussi|et aussi|add|also show)\b|\baussi\b|\ben plus\b")
+_TABLE = re.compile(r"\b(?:tableau|liste|table|list|detail)\b")
+_SWITCH = re.compile(r"\b(?:en|as an?|as)\s+(tableau|table|liste|list|graphique|barres|bar chart|chart|graph)\b")
+_TOP = re.compile(r"\b(?:top|les|mes|my)\s+(\d{1,2})\b(?!\s+(?:derni\w+\s+|prochain\w*\s+|last\s+|next\s+)?"
+                  r"(?:mois|jours?|semaines?|ans?|annees?|months?|days?|weeks?|years?)\b)")
+# Le catalogue ne connaît que les périodes en cours : « l'an dernier » n'est pas « cette année »
+_PREVIOUS = re.compile(r"\b(?:annee|an|mois|trimestre|semestre)\s+(?:dernier|derniere|precedent|precedente|passee?)\b"
+                       r"|\b(?:last|previous|past)\s+(?:year|month|quarter)\b")
 _PERIOD = [
-    (re.compile(r"6 (derniers )?mois|six (derniers )?mois|semestre|6 months|six months"), "last_6_months"),
-    (re.compile(r"12 (derniers )?mois|douze mois|12 months|twelve months|un an glissant"), "last_12_months"),
+    (re.compile(r"6 (?:derniers )?mois|six (?:derniers )?mois|semestre|6 months|six months"), "last_6_months"),
+    (re.compile(r"12 (?:derniers )?mois|douze mois|12 months|twelve months|un an glissant"), "last_12_months"),
     (re.compile(r"trimestre|quarter"), "quarter"),
     (re.compile(r"\bce mois\b|\bdu mois\b|\bmensuel|this month"), "month"),
-    (re.compile(r"\bannee\b|\ban\b|\bannuel|\byear\b|depuis janvier"), "year"),
+    (re.compile(r"\bannee\b|\bannuel|\b(?:un|cet|par)\s+an\b|\bl'an\b|\byear\b|depuis janvier"), "year"),
 ]
 
 
-def _matches(folded: str) -> list[dict]:
+def _matches(folded: str, original: str = "") -> list[dict]:
     """Cartes demandées, dans l'ordre où la demande les cite."""
     found = []
     for pattern, widget in _KEYWORDS:
         match = re.search(pattern, folded)
         if match:
             found.append({"source": widget["source"], "params": dict(widget.get("params", {})), "at": match.start()})
+    ca = _CA_UPPER.search(original) or _CA_FOLDED.search(folded)
+    revenue_named = bool(re.search(_REVENUE_WORDS, folded) or ca)
+    if ca and not any(w["source"] == "revenue_by_month" for w in found):
+        found.append({"source": "revenue_by_month", "params": {}, "at": ca.start()})
+
+    def drop(source: str) -> None:
+        nonlocal found
+        found = [w for w in found if w["source"] != source]
+
     sources = {w["source"] for w in found}
-    revenue_named = re.search(r"chiffre d'affaires|\bca\b|revenu|ventes|revenue|sales", folded)
+    metrics = {w["params"].get("metric") for w in found if w["source"] == "kpi"}
+    monthly = bool(_MONTHLY.search(folded))
+    detail = bool(_DETAIL.search(folded))
+    # Un chiffre clé demandé : pas aussi le graphique ou le tableau du même sujet, sauf si la demande le dit
+    if "revenue_year" in metrics and not monthly:
+        drop("revenue_by_month")
+    if "vat_balance" in metrics and not monthly:
+        drop("vat_by_month")
+    if "quotes_pending" in metrics and not detail:
+        drop("pending_quotes")
+    if metrics & {"to_collect", "overdue_total"} and not re.search(r"impaye|non paye|unpaid|" + _DETAIL.pattern, folded):
+        drop("unpaid_invoices")
+    if "paid_month" in metrics and not (re.search(_REVENUE_WORDS, folded) or ca):
+        drop("revenue_by_month")
     # « factures impayées » : pas aussi un graphique de chiffre d'affaires
     if "unpaid_invoices" in sources and not revenue_named:
-        found = [w for w in found if w["source"] != "revenue_by_month"]
+        drop("revenue_by_month")
     # « CA par client » : pas aussi le CA mois par mois, sauf si la demande le dit
     if "revenue_by_client" in sources and not re.search(r"par mois|mensuel|mois par mois|by month|monthly", folded):
-        found = [w for w in found if w["source"] != "revenue_by_month"]
+        drop("revenue_by_month")
     # « en retard » et « impayées » ensemble : une seule carte, celle des retards
     unpaid = [w for w in found if w["source"] == "unpaid_invoices"]
     if len(unpaid) > 1:
@@ -333,20 +395,28 @@ def _matches(folded: str) -> list[dict]:
     return [{"source": w["source"], "params": w["params"]} for w in sorted(found, key=lambda w: w["at"])]
 
 
+def _refused(message: str, current: dict) -> dict:
+    return {"spec": current, "message": message, "understood": False}
+
+
 def compose_offline(text: str, current: dict) -> dict:
     """Demande + vue actuelle → nouvelle vue et message d'explication. Sans IA."""
     folded = _fold(text)
     current = validate_spec(current)
-    period = next((p for pattern, p in _PERIOD if pattern.search(folded)), None)
 
-    if _MODIFY.search(folded) or _RECORD.search(folded):
-        return {"spec": current, "message": "read_only", "understood": False}
+    if _ACTION.search(folded) or _MODIFY.search(folded) or _RECORD.search(folded):
+        return _refused("read_only", current)
+    if _PREVIOUS.search(folded):
+        return _refused("period_unsupported", current)
 
-    if _CLEAR.search(folded):
+    found = _matches(folded, text)
+    if _CLEAR.search(folded) and (not found or re.search(r"\b(?:tout|all|everything)\b", folded)):
         return {"spec": {**current, "widgets": []}, "message": "cleared", "understood": True}
 
     if _REMOVE.search(folded):
-        targets = {w["source"] for w in _matches(folded)}
+        if _SINGLE_RECORD.search(folded):
+            return _refused("read_only", current)
+        targets = {w["source"] for w in found}
         # « enlève le graphique » / « enlève le tableau » : par type de carte
         visuals = set()
         if not targets:
@@ -357,22 +427,38 @@ def compose_offline(text: str, current: dict) -> dict:
             if re.search(r"chiffre cle|carte chiffre|kpi", folded):
                 visuals.add("stat")
         if not targets and not visuals:
-            return {"spec": current, "message": "remove_unknown", "understood": False}
+            return _refused("remove_unknown", current)
         kept = [w for w in current["widgets"] if w["source"] not in targets and w["visual"] not in visuals]
         removed = len(current["widgets"]) - len(kept)
         return {"spec": {**current, "widgets": kept}, "message": "removed" if removed else "remove_none",
                 "understood": bool(removed)}
 
-    found = _matches(folded)
+    # « modifie le graphique en tableau », « passe les impayés en graphique » : on change l'affichage
+    switch = _SWITCH.search(folded)
+    if switch and current["widgets"]:
+        named = {w["source"] for w in found}
+        shown = {w["source"] for w in current["widgets"]}
+        if named <= shown:
+            visual = "table" if switch.group(1) in ("tableau", "table", "liste", "list") else "bar"
+            widgets, changed = [], 0
+            for w in current["widgets"]:
+                if (not named or w["source"] in named) and visual in CATALOG[w["source"]]["visuals"] and w["visual"] != visual:
+                    w = {**w, "visual": visual}
+                    changed += 1
+                widgets.append(w)
+            if changed:
+                return {"spec": validate_spec({**current, "widgets": widgets}), "message": "changed", "understood": True}
+
     if not found:
-        return {"spec": current, "message": "not_understood", "understood": False}
+        return _refused("not_understood", current)
+    period = next((p for pattern, p in _PERIOD if pattern.search(folded)), None)
+    top = _TOP.search(folded)
     wants_table = bool(_TABLE.search(folded))
     widgets = []
     for w in found:
         entry = CATALOG[w["source"]]
         visual = "table" if wants_table and "table" in entry["visuals"] else entry["default_visual"]
         params = dict(w["params"])
-        top = re.search(r"\b(?:top|les|mes)\s+(\d{1,2})\b", folded)
         if top and "limit" in entry["params"]:
             params["limit"] = int(top.group(1))
         if period and "period" in entry["params"]:
@@ -416,11 +502,17 @@ def _view_values(data: dict) -> dict:
 
 
 def create_view(user_id: int, data: dict) -> dict:
-    count = db.fetch_one("SELECT COUNT(*) AS n FROM dashboard_views WHERE user_id = ?", (user_id,))["n"]
-    if count >= MAX_VIEWS:
-        raise services.Conflict(f"{MAX_VIEWS} vues au plus : supprimez-en une avant d'en créer une autre.")
+    values = _view_values(data)
     now = db.now_iso()
-    view_id = db.insert("dashboard_views", {**_view_values(data), "user_id": user_id, "created_at": now, "updated_at": now})
+    # Compter et insérer dans la même transaction : deux créations simultanées ne dépassent pas la limite
+    with db.connect() as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        count = conn.execute("SELECT COUNT(*) AS n FROM dashboard_views WHERE user_id = ?", (user_id,)).fetchone()["n"]
+        if count >= MAX_VIEWS:
+            raise services.Conflict(f"{MAX_VIEWS} vues au plus : supprimez-en une avant d'en créer une autre.")
+        view_id = conn.execute(
+            "INSERT INTO dashboard_views (user_id, name, spec, prompt, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+            (user_id, values["name"], values["spec"], values["prompt"], now, now)).lastrowid
     return get_view(user_id, view_id)
 
 
@@ -435,6 +527,26 @@ def update_view(user_id: int, view_id: int, data: dict) -> dict:
 def delete_view(user_id: int, view_id: int) -> None:
     get_view(user_id, view_id)
     db.execute("DELETE FROM dashboard_views WHERE id = ? AND user_id = ?", (view_id, user_id))
+
+
+# ── Limite des appels à l'IA ─────────────────────────────────────────────
+# Au-delà, la demande passe par l'analyse locale : la page reste utilisable, sans coût ni attente.
+AI_CALLS_PER_MINUTE = 20
+_ai_calls: dict[str, list[float]] = {}
+_ai_lock = threading.Lock()
+_ai_slots = threading.BoundedSemaphore(4)  # appels simultanés au plus (chacun occupe un worker)
+
+
+def ai_allowed(key: str) -> bool:
+    """Enregistre un appel pour `key` (utilisateur, et adresse IP en démo) s'il reste du quota."""
+    cutoff = time.monotonic() - 60
+    with _ai_lock:
+        recent = [t for t in _ai_calls.get(key, []) if t > cutoff]
+        if len(recent) >= AI_CALLS_PER_MINUTE:
+            _ai_calls[key] = recent
+            return False
+        _ai_calls[key] = [*recent, time.monotonic()]
+        return True
 
 
 def catalog() -> list[dict]:
