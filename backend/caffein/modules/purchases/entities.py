@@ -277,7 +277,7 @@ ORDER_LINE_FIELDS = [
 
 ORDERS = Entity(
     module="purchases", name="orders", table="purchases_orders", label=("Commande fournisseur", "Purchase order"),
-    plural=("Commandes fournisseurs", "Purchase orders"), title="code", order_by="id DESC", icon="ShoppingCart",
+    plural=("Commandes fournisseurs", "Purchase orders"), title="code", order_by="id DESC", icon="ShoppingCart", board="status",
     description=("Envoyez vos commandes, suivez les livraisons attendues et réceptionnez-les : le stock suit si la "
                  "Logistique est active.",
                  "Send your orders, track expected deliveries and receive them: stock follows when Logistics is on."),
