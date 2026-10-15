@@ -94,6 +94,7 @@ def _warehouse_after_save(row_id: int, created: bool) -> None:
 WAREHOUSES = Entity(
     module="stock", name="warehouses", table="stock_warehouses", label=("Entrepôt", "Warehouse"),
     plural=("Entrepôts", "Warehouses"), title="name", subtitle="code", order_by="name COLLATE NOCASE", icon="Warehouse",
+    active="active",
     description=("Vos lieux de stockage. Les livraisons, réceptions et fabrications utilisent l'entrepôt par défaut.",
                  "Your storage locations. Deliveries, receipts and production use the default warehouse."),
     fields=[

@@ -268,6 +268,41 @@ def test_order_lifecycle(client):
     assert client.delete(f"/api/data/sales/orders/{third['id']}").status_code == 204
 
 
+def test_lines_are_updated_by_id(client, restore_modules):
+    """Une ligne renvoyée avec son id est mise à jour : ses colonnes absentes ou invisibles (référence vers un module
+    désactivé) sont conservées ; une ligne sans id est nouvelle ; une ligne absente est supprimée."""
+    article = db.fetch_one("SELECT id, name FROM technical_articles WHERE kind != 'service' ORDER BY id LIMIT 1")
+    order = client.post("/api/data/sales/orders", json={"client_id": _client_id(), "lines": [
+        {"article_id": article["id"], "description": "Avec article", "quantity": 2, "unit_price": 10},
+        {"description": "Sans article", "quantity": 1, "unit_price": 5}]}).json()
+    url = f"/api/data/sales/orders/{order['id']}"
+    first, second = order["lines"]
+    # mise à jour partielle d'une ligne : la désignation et l'article restent
+    lines = client.put(url, json={"lines": [{"id": first["id"], "quantity": 3}, {"id": second["id"]}]}).json()["lines"]
+    assert [(l["id"], l["description"], l["quantity"], l["article_id"]) for l in lines] == [
+        (first["id"], "Avec article", 3, article["id"]), (second["id"], "Sans article", 1, None)]
+    # Données techniques désactivées : l'article n'est plus visible, et un enregistrement ne doit pas l'effacer
+    from tests.modules.helpers import disable_module
+    disable_module(client, "technical")
+    hidden = client.get(url).json()["lines"][0]
+    assert "article_id" not in hidden
+    client.put(url, json={"lines": [{**hidden, "unit_price": 12}, {"id": second["id"]}]})
+    registry.enable_all()
+    kept = client.get(url).json()["lines"][0]
+    assert kept["article_id"] == article["id"] and kept["unit_price"] == 12
+    # ligne sans id : nouvelle ; ligne absente : supprimée ; id d'une autre fiche : nouvelle ligne, l'autre intacte
+    other = client.post("/api/data/sales/orders", json={"client_id": _client_id(), "lines": [
+        {"description": "Autre commande", "quantity": 1, "unit_price": 1}]}).json()
+    stranger = other["lines"][0]["id"]
+    lines = client.put(url, json={"lines": [{"id": first["id"]}, {"id": stranger, "description": "Copie", "quantity": 1},
+                                            {"description": "Nouvelle", "quantity": 4, "unit_price": 2}]}).json()["lines"]
+    assert [l["description"] for l in lines] == ["Avec article", "Copie", "Nouvelle"]
+    assert lines[0]["id"] == first["id"] and stranger not in {l["id"] for l in lines}
+    assert client.get(f"/api/data/sales/orders/{other['id']}").json()["lines"][0]["description"] == "Autre commande"
+    assert db.fetch_one("SELECT COUNT(*) AS n FROM sales_order_lines WHERE id = ?", (second["id"],))["n"] == 0
+    assert client.put(url, json={"lines": [{"id": True, "description": "x", "quantity": 1}]}).json()["lines"][0]["id"] != 1
+
+
 def test_entity_validation(client):
     def post(data):
         return client.post("/api/data/sales/orders", json=data)
@@ -336,6 +371,15 @@ def test_options(client):
     make_member("options@test.local", role_id("readonly"), {"sales": 0})
     member = login_as("options@test.local")
     assert member.get("/api/data/sales/clients/options").status_code == 403
+    # une fiche inactive (article arrêté, fournisseur, salarié parti) n'est plus proposée, mais reste consultable
+    article = client.post("/api/data/technical/articles", json={"name": "Carnet arrêté"}).json()
+    assert [o["id"] for o in client.get("/api/data/technical/articles/options?q=carnet arr").json()] == [article["id"]]
+    client.put(f"/api/data/technical/articles/{article['id']}", json={"active": False})
+    assert client.get("/api/data/technical/articles/options?q=carnet arr").json() == []
+    assert client.get(f"/api/data/technical/articles/{article['id']}").status_code == 200
+    assert client.get("/api/data/technical/articles", params={"q": "carnet arr"}).json()["total"] == 1
+    from caffein.core import entities
+    assert entities.get("purchases.suppliers").active == "active" and entities.get("hr.employees").active == "active"
 
 
 def test_events_reach_enabled_subscribers(client, monkeypatch, restore_modules):

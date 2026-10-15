@@ -129,7 +129,7 @@ def _supplier_validate(values: dict, existing: dict | None) -> None:
 
 SUPPLIERS = Entity(
     module="purchases", name="suppliers", table="purchases_suppliers", label=("Fournisseur", "Supplier"),
-    plural=("Fournisseurs", "Suppliers"), title="name", subtitle="city", order_by="name COLLATE NOCASE", icon="Truck",
+    plural=("Fournisseurs", "Suppliers"), title="name", subtitle="city", order_by="name COLLATE NOCASE", icon="Truck", active="active",
     description=("Vos fournisseurs, leurs coordonnées et leurs conditions de paiement.",
                  "Your suppliers, their contact details and payment terms."),
     fields=[

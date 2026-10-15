@@ -657,6 +657,13 @@ def test_kpis_are_offered_in_my_views(client):
             assert f"purchases.{kpi.key}" in metrics(f"Montre-moi : {label.lower()}"), label
     for text in ("mes factures en retard", "le total en retard", "combien j'ai encaissé ce mois-ci", "mes commandes à livrer"):
         assert not [m for m in metrics(text) if m.startswith("purchases.")], text
+    # les mots d'un libellé reconnu (« en retard », « achats ») ne demandent pas aussi une autre carte
+    def sources(text):
+        return [w["source"] for w in dashboard.compose_offline(text, {})["spec"]["widgets"]]
+
+    assert sources("Livraisons fournisseurs en retard") == ["kpi"]
+    assert sources("Achats du mois") == ["kpi"]
+    assert sources("Achats du mois et factures en retard") == ["kpi", "unpaid_invoices"]
     # de bout en bout : la demande devient une carte, calculée par le module
     res = client.post("/api/dashboards/compose", json={"text": "Montre-moi les commandes fournisseurs à recevoir"})
     [card] = [w for w in res.json()["view"]["widgets"] if w["source"] == "kpi"]

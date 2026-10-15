@@ -248,6 +248,7 @@ def _employee_figures(rows: list[dict]) -> None:
 EMPLOYEES = Entity(
     module="hr", name="employees", table="hr_employees", label=("Salarié", "Employee"), plural=("Salariés", "Employees"),
     title="full_name", subtitle="job_title", order_by="last_name COLLATE NOCASE, first_name COLLATE NOCASE", icon="IdCard",
+    active="active",
     description=("Contrats, services, ancienneté et congés calculés. Les salaires ne sont visibles qu'au niveau gestion.",
                  "Contracts, departments, calculated seniority and leave. Salaries are only visible at manage level."),
     fields=[

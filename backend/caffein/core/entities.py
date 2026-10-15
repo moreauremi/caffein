@@ -137,6 +137,7 @@ class Entity:
     icon: str | None = None
     description: Label | None = None
     board: str | None = None                                      # champ à choix (statut…) : vue en colonnes
+    active: str | None = None                                     # champ oui/non : seules les fiches actives sont proposées
 
     def __post_init__(self) -> None:
         for name in (self.module, self.name, self.table):
@@ -147,6 +148,8 @@ class Entity:
             raise ValueError(f"Champs en double dans {self.key}")
         if self.title not in names:
             raise ValueError(f"{self.key} : le champ titre {self.title!r} n'est pas déclaré.")
+        if self.active is not None and (self.field(self.active) is None or self.field(self.active).type != "bool"):
+            raise ValueError(f"{self.key} : le champ « actif » doit être un champ oui/non ({self.active!r}).")
         if self.board is not None:
             board = self.field(self.board)
             if board is None or board.type != "enum" or board.computed:
@@ -632,7 +635,13 @@ def writable(child: Child) -> bool:
     return any(not f.readonly and not f.computed for f in child.fields)
 
 
-def _clean_children(entity: Entity, data: dict, level: int) -> dict[str, list[dict]]:
+LINE_ID = "__id"  # identifiant d'une ligne existante, gardé pendant l'enregistrement (pas une colonne)
+
+
+def _clean_children(entity: Entity, data: dict, level: int, existing: dict | None = None) -> dict[str, list[dict]]:
+    """Lignes reçues → lignes à enregistrer. Une ligne qui porte l'`id` d'une ligne de la fiche la met à jour : ses
+    colonnes absentes ou invisibles pour l'utilisateur (référence vers un module désactivé, champ sensible) sont
+    conservées. Les autres lignes sont nouvelles ; les lignes enregistrées absentes de la liste sont supprimées."""
     out = {}
     for child in entity.children:
         if child.key not in data or not writable(child):
@@ -643,14 +652,23 @@ def _clean_children(entity: Entity, data: dict, level: int) -> dict[str, list[di
         if len(raw_rows) > child.max_rows:
             raise ValueError(f"{child.label[0]} : {child.max_rows} lignes au plus.")
         fields = visible_fields(entity, child.fields, level)
-        rows = []
+        stored = {line["id"]: line for line in (existing or {}).get(child.key) or []}
+        columns = [f.name for f in child.fields if not f.computed]
+        rows, seen = [], set()
         for i, raw in enumerate(raw_rows, start=1):
             if not isinstance(raw, dict):
                 raise ValueError(f"{child.label[0]}, ligne {i} : invalide.")
+            line_id = raw.get("id")
+            valid_id = isinstance(line_id, int) and not isinstance(line_id, bool) and line_id not in seen
+            known = stored.get(line_id) if valid_id else None
             try:
-                rows.append(_clean_record(entity, fields, raw, None))
+                values = _clean_record(entity, fields, raw, known)
             except ValueError as exc:
                 raise ValueError(f"{child.label[0]}, ligne {i} — {exc}") from None
+            if known is not None:  # ligne complète pour les contrôles du module
+                seen.add(line_id)
+                values = {**{c: known[c] for c in columns if c in known}, **values, LINE_ID: line_id}
+            rows.append(values)
         if len(rows) < child.min_rows:
             raise ValueError(f"{child.label[0]} : au moins {child.min_rows} ligne(s).")
         out[child.key] = rows
@@ -661,12 +679,24 @@ def _write_children(conn: sqlite3.Connection, entity: Entity, row_id: int, child
     for child in entity.children:
         if child.key not in children:
             continue
-        conn.execute(f"DELETE FROM {child.table} WHERE {child.fk} = ?", (row_id,))
-        for position, values in enumerate(children[child.key]):
+        stored = {r["id"] for r in conn.execute(f"SELECT id FROM {child.table} WHERE {child.fk} = ?", (row_id,))}
+        kept = set()
+        for position, line in enumerate(children[child.key]):
+            values = {k: v for k, v in line.items() if k != LINE_ID}
+            line_id = line.get(LINE_ID)
+            if line_id in stored:  # mise à jour : seules les colonnes reçues changent
+                sets = {**values, "position": position}
+                conn.execute(f"UPDATE {child.table} SET {', '.join(f'{k} = ?' for k in sets)} WHERE id = ?",
+                             (*sets.values(), line_id))
+                kept.add(line_id)
+                continue
             values = {k: v for k, v in values.items() if v is not None}
             cols = [child.fk, "position", *values]
             conn.execute(f"INSERT INTO {child.table} ({', '.join(cols)}) VALUES ({', '.join('?' for _ in cols)})",
                          (row_id, position, *values.values()))
+        gone = sorted(stored - kept)
+        if gone:
+            conn.execute(f"DELETE FROM {child.table} WHERE id IN ({', '.join('?' for _ in gone)})", tuple(gone))
 
 
 def save_row(entity: Entity, data: dict, level: int, row_id: int | None = None) -> int:
@@ -682,7 +712,7 @@ def save_row(entity: Entity, data: dict, level: int, row_id: int | None = None) 
             raise Conflict(reason)
     fields = visible_fields(entity, entity.fields, level)
     values = _clean_record(entity, fields, data, existing)
-    children = _clean_children(entity, data, level)
+    children = _clean_children(entity, data, level, existing)
     auto: list[Field] = []  # numéros attribués ici : relus sous verrou au moment d'écrire
     for fld in entity.fields:
         if fld.type == "code" and fld.prefix:
@@ -827,15 +857,17 @@ def run_action(entity: Entity, row_id: int, key: str, payload: dict, user: dict,
 
 def options(entity: Entity, q: str | None = None, limit: int = 20, fill: dict[str, str] | None = None) -> list[dict]:
     """Choix d'une référence : id, libellé (champ titre), complément (sous-titre) et, pour un champ qui
-    recopie des valeurs (`fill`), ces valeurs prêtes à être reprises par le formulaire."""
+    recopie des valeurs (`fill`), ces valeurs prêtes à être reprises par le formulaire. Une entité qui déclare
+    `active` ne propose que ses fiches actives (un fournisseur ou un salarié parti ne se choisit plus)."""
     params: list[Any] = []
-    where = ""
+    conditions = [f"{entity.active} = 1"] if entity.active else []
     title, subtitle = entity.title, entity.subtitle
     if q:
         pattern = "%" + q.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
         cols = [title] + ([subtitle] if subtitle else []) + [f.name for f in entity.fields if f.search and not f.computed]
-        where = "WHERE " + " OR ".join(f"{c} LIKE ? ESCAPE '\\'" for c in dict.fromkeys(cols))
+        conditions.append("(" + " OR ".join(f"{c} LIKE ? ESCAPE '\\'" for c in dict.fromkeys(cols)) + ")")
         params = [pattern] * len(dict.fromkeys(cols))
+    where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
     sub = f", {subtitle} AS sublabel" if subtitle else ""
     fill = safe_fill(entity, fill)
     remote = list(dict.fromkeys(fill.values()))

@@ -422,12 +422,17 @@ def _metric_patterns(levels: dict[str, int] | None) -> list[tuple[str, str]]:
 def _matches(folded: str, original: str = "", levels: dict[str, int] | None = None) -> list[dict]:
     """Cartes demandées, dans l'ordre où la demande les cite."""
     found = []
+    spans = []  # libellés de chiffres clés reconnus : leurs mots ne demandent pas d'autre carte
     for pattern, metric in _metric_patterns(levels):
         match = re.search(pattern, folded)
-        if match and not any(w["params"].get("metric") == metric for w in found):
-            found.append({"source": "kpi", "params": {"metric": metric}, "at": match.start()})
+        if match:
+            spans.append(match.span())
+            if not any(w["params"].get("metric") == metric for w in found):
+                found.append({"source": "kpi", "params": {"metric": metric}, "at": match.start()})
     for pattern, widget in _KEYWORDS:
-        match = re.search(pattern, folded)
+        # « livraisons fournisseurs en retard » : « en retard » appartient au libellé, pas aux factures en retard
+        match = next((m for m in re.finditer(pattern, folded)
+                      if not any(start <= m.start() and m.end() <= end for start, end in spans)), None)
         if match:
             found.append({"source": widget["source"], "params": dict(widget.get("params", {})), "at": match.start()})
     ca = _CA_UPPER.search(original) or _CA_FOLDED.search(folded)

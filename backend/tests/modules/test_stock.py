@@ -98,6 +98,28 @@ def test_purchase_and_production_events(demo):
     assert kinds == {"production", "consumption"}
 
 
+def test_same_document_counted_once_even_at_the_same_time(demo):
+    """Deux réceptions simultanées du même document (double clic, deux onglets) : un seul jeu de mouvements."""
+    import threading
+
+    envelope = article_id("Enveloppe kraft C5")
+    before = stock.on_hand(envelope)
+    start = threading.Barrier(4)
+    counts = []
+
+    def receive():
+        start.wait()
+        counts.append(stock.post("receipt", [{"article_id": envelope, "quantity": 10}], sign=1, source="purchases:race-1"))
+
+    threads = [threading.Thread(target=receive) for _ in range(4)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    assert sorted(counts) == [0, 0, 0, 1]
+    assert stock.on_hand(envelope) == before + 10
+
+
 def test_disabled_logistics_ignores_deliveries(client, restore_modules):
     kit = article_id("Kit papeterie de marque")
     before = stock.on_hand(kit)

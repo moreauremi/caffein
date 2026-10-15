@@ -166,7 +166,7 @@ FAMILIES = Entity(
 
 ARTICLES = Entity(
     module="technical", name="articles", table="technical_articles", label=("Article", "Item"), plural=("Articles", "Items"),
-    title="name", subtitle="code", order_by="name COLLATE NOCASE", icon="Package",
+    title="name", subtitle="code", order_by="name COLLATE NOCASE", icon="Package", active="active",
     description=("Le référentiel commun aux ventes, aux achats, au stock et à la production.",
                  "The shared catalogue for sales, purchasing, stock and production."),
     fields=[
@@ -286,6 +286,7 @@ WORKCENTER_KINDS = (("machine", ("Machine", "Machine")), ("manual", ("Poste manu
 WORKCENTERS = Entity(
     module="technical", name="workcenters", table="technical_workcenters", label=("Poste de charge", "Work centre"),
     plural=("Postes de charge", "Work centres"), title="name", subtitle="code", order_by="name COLLATE NOCASE", icon="Cog",
+    active="active",
     description=("Machines et postes de travail, avec leur coût horaire et leur capacité.",
                  "Machines and workstations, with their hourly cost and capacity."),
     fields=[

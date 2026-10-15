@@ -45,9 +45,8 @@ def _stocked(article_ids: set[int]) -> set[int]:
 def post(kind: str, lines: list[dict], *, sign: int, reference: str = "", date: str | None = None, source: str = "",
          warehouse_id: int | None = None) -> int:
     """Enregistre les mouvements d'un document (une ligne par article stocké) et renvoie leur nombre.
-    Un même document (`source`) n'est compté qu'une fois par type de mouvement."""
-    if source and db.fetch_one("SELECT 1 FROM stock_movements WHERE source = ? AND kind = ? LIMIT 1", (source, kind)):
-        return 0
+    Un même document (`source`) n'est compté qu'une fois par type de mouvement, même si deux demandes
+    arrivent en même temps (contrôle et écriture sous le même verrou)."""
     stocked = _stocked({line["article_id"] for line in lines if line.get("article_id")})
     rows = [line for line in lines if line.get("article_id") in stocked and line.get("quantity")]
     if not rows:
@@ -56,7 +55,10 @@ def post(kind: str, lines: list[dict], *, sign: int, reference: str = "", date: 
     day = date or today().isoformat()
     now = db.now_iso()
     with db.connect() as conn:
-        conn.execute("BEGIN IMMEDIATE")  # numérotation et insertion ensemble
+        conn.execute("BEGIN IMMEDIATE")  # contrôle du document, numérotation et insertion ensemble
+        if source and conn.execute("SELECT 1 FROM stock_movements WHERE source = ? AND kind = ? LIMIT 1",
+                                   (source, kind)).fetchone():
+            return 0
         stem = f"MVT-{day[:4]}-"
         first = entities.next_code("stock_movements", "code", "MVT", ref=date_cls.fromisoformat(day), conn=conn)
         seq = int(first[len(stem):]) - 1

@@ -31,7 +31,7 @@ export function initialChildren(entity, row) {
   const out = {}
   for (const child of entity.children) {
     out[child.key] = row ? (row[child.key] || []).map((line) => {
-      const clean = {}
+      const clean = { id: line.id } // la ligne garde son identifiant : le serveur la met à jour sans perdre ses autres colonnes
       for (const field of editableFields(child.fields)) {
         clean[field.name] = line[field.name] ?? null
         if (field.type === 'ref') clean[`${field.name}__label`] = line[`${field.name}__label`] ?? null
@@ -49,7 +49,10 @@ export function buildPayload(entity, form, children) {
   for (const child of entity.children) {
     if (child.writable === false) continue // lignes calculées par le serveur : jamais envoyées
     const fields = editableFields(child.fields)
-    payload[child.key] = (children[child.key] || []).map((line) => Object.fromEntries(fields.map((f) => [f.name, line[f.name] ?? null])))
+    payload[child.key] = (children[child.key] || []).map((line) => ({
+      ...(line.id ? { id: line.id } : {}),
+      ...Object.fromEntries(fields.map((f) => [f.name, line[f.name] ?? null])),
+    }))
   }
   return payload
 }
