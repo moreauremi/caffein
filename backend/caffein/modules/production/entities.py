@@ -77,6 +77,11 @@ CREATE VIEW IF NOT EXISTS production_load AS
                WHERE o.status = 'released' AND op.workcenter_id IS NOT NULL
                GROUP BY op.workcenter_id) r ON r.workcenter_id = w.id;
 """),
+    (2, """
+-- Prix figés à la fin de la fabrication : coût de revient du composant et taux horaire du poste ce jour-là
+ALTER TABLE production_order_components ADD COLUMN unit_cost REAL;
+ALTER TABLE production_order_operations ADD COLUMN hourly_cost REAL;
+"""),
 ]
 
 STATUSES = (
@@ -217,8 +222,18 @@ def _complete(row: dict, payload: dict, user: dict) -> str:
         "order_id": row["id"], "code": row["code"], "date": day, "article_id": row["article_id"],
         "quantity": row["quantity"], "warehouse_id": warehouse, "components": components,
     })
+    ctx = planning.Context()
     with db.connect() as conn:
         _move(conn, row, "done", ("released",), produced_quantity=row["quantity"], completed_on=day, warehouse_id=warehouse)
+        # le coût d'un ordre terminé ne suit plus les prix : ceux du jour de la fin de fabrication restent
+        for line in conn.execute("SELECT id, article_id FROM production_order_components WHERE order_id = ?",
+                                 (row["id"],)).fetchall():
+            conn.execute("UPDATE production_order_components SET unit_cost = ? WHERE id = ?",
+                         (ctx.cost(line["article_id"]), line["id"]))
+        for line in conn.execute("SELECT id, workcenter_id FROM production_order_operations WHERE order_id = ?",
+                                 (row["id"],)).fetchall():
+            conn.execute("UPDATE production_order_operations SET hourly_cost = ? WHERE id = ?",
+                         (ctx.workcenter(line["workcenter_id"]).get("hourly_cost"), line["id"]))
     return " ".join([f"Ordre {row['code']} terminé.", *messages])
 
 
@@ -233,6 +248,7 @@ COMPONENT_FIELDS = [
     Field("quantity", ("Besoin", "Required"), type="decimal", readonly=True),
     Field("available", ("En stock", "On hand"), type="decimal", computed=True),
     Field("shortage", ("Manquant", "Shortage"), type="decimal", computed=True),
+    Field("unit_cost", ("Coût unitaire figé", "Frozen unit cost"), type="money", readonly=True, hidden=True),
 ]
 
 OPERATION_FIELDS = [
@@ -240,6 +256,7 @@ OPERATION_FIELDS = [
     Field("description", ("Opération", "Operation"), readonly=True),
     Field("planned_minutes", ("Temps prévu (min)", "Planned time (min)"), type="decimal", readonly=True),
     Field("cost", ("Coût", "Cost"), type="money", computed=True),
+    Field("hourly_cost", ("Taux horaire figé", "Frozen hourly cost"), type="money", readonly=True, hidden=True),
 ]
 
 ORDERS = Entity(

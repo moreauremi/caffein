@@ -127,7 +127,8 @@ champ à choix (étapes d'une opportunité, statuts d'une commande…). Le serve
 et le total de chaque colonne (premier montant affiché dans la liste) ; route `GET /api/data/<module>/<entité>/board`.
 
 **Lignes** — `Child(key, label, table, fk, fields, min_rows=0, max_rows=500)` : enregistrées avec la fiche, dans la même
-transaction. Des lignes dont tous les champs sont `readonly`/`computed` (besoins calculés…) ne se saisissent pas.
+transaction. Des lignes dont tous les champs sont `readonly`/`computed` (besoins calculés…) ne se saisissent pas :
+`compute` les remplit (aussi pendant la saisie, où l'aperçu les renvoie complètes et la fiche les affiche).
 Une ligne envoyée avec son `id` est mise à jour (ses colonnes absentes ou invisibles pour l'utilisateur, comme une
 référence vers un module désactivé, sont conservées) ; une ligne sans `id` est nouvelle ; une ligne enregistrée
 absente de la liste est supprimée. Les contrôles (`validate`) reçoivent des lignes complètes.

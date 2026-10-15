@@ -314,6 +314,8 @@ def test_entity_validation(client):
     assert bad_qty.status_code == 400 and "ligne 1" in bad_qty.json()["detail"]
     assert post({"client_id": _client_id(), "lines": [{"quantity": 1}]}).status_code == 400  # désignation obligatoire
     assert post({"client_id": _client_id(), "lines": "x"}).status_code == 400
+    too_many = post({"client_id": _client_id(), "lines": [{"description": "x", "quantity": 2e9}]}).json()["detail"]
+    assert too_many.endswith("Quantité : 1\u00a0000\u00a0000\u00a0000 au maximum.")  # pas de « 1e+09 »
     assert post({"client_id": _client_id(), "order_date": "32/13/2026"}).status_code == 400
     assert post({"client_id": _client_id(), "status": "invoiced"}).json()["status"] == "draft"  # champ en lecture seule
     assert client.post("/api/data/sales/orders", content="[1]", headers={"content-type": "application/json"}).status_code in (400, 422)

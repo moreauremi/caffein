@@ -21,7 +21,7 @@ from datetime import date
 from typing import Any
 
 from .. import db
-from ..utils import cents, parse_date, today
+from ..utils import cents, fmt_number, parse_date, today
 from .errors import Conflict, Forbidden, NotFound
 from .modules import MANAGE, READ, WRITE, Label
 
@@ -533,9 +533,9 @@ def _clean_value(fld: Field, value: Any, label: str) -> Any:
 
 def _bounds(fld: Field, number: float, label: str) -> None:
     if fld.min is not None and number < fld.min:
-        raise ValueError(f"{label} : {fld.min:g} au minimum.")
+        raise ValueError(f"{label} : {fmt_number(fld.min)} au minimum.")
     if fld.max is not None and number > fld.max:
-        raise ValueError(f"{label} : {fld.max:g} au maximum.")
+        raise ValueError(f"{label} : {fmt_number(fld.max)} au maximum.")
 
 
 def _check_ref(fld: Field, value: Any, label: str) -> None:
@@ -808,6 +808,9 @@ def preview(entity: Entity, data: dict, level: int, row_id: int | None = None) -
             except ValueError:
                 row[fld.name] = None
     for child in entity.children:
+        if not writable(child):  # lignes remplies par le serveur (prévision…) : le module les calcule ci-dessous
+            row.setdefault(child.key, [])
+            continue
         if child.key not in data or not isinstance(data[child.key], list):
             continue
         fields = visible_fields(entity, child.fields, level)
@@ -828,7 +831,15 @@ def preview(entity: Entity, data: dict, level: int, row_id: int | None = None) -
     computed = {f.name: row.get(f.name) for f in entity.fields if f.computed}
     children = {c.key: [{f.name: line.get(f.name) for f in c.fields if f.computed} for line in row.get(c.key, [])]
                 for c in entity.children if c.key in data}
-    return {"computed": computed, "children": children}
+    # Lignes entièrement calculées (besoins prévus d'un ordre de fabrication…) : renvoyées complètes, avec libellés
+    lines = {}
+    for c in entity.children:
+        if writable(c):
+            continue
+        shown = [f for f in visible_fields(entity, c.fields, level) if not f.hidden]
+        names = {f.name for f in shown} | {f"{f.name}__label" for f in shown if f.type == "ref"}
+        lines[c.key] = [{k: v for k, v in line.items() if k in names} for line in row.get(c.key) or []]
+    return {"computed": computed, "children": children, "lines": lines}
 
 
 def ref_label(key: str, row_id: int | None) -> str | None:

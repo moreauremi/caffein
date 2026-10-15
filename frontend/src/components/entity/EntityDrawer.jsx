@@ -207,11 +207,18 @@ export default function EntityDrawer({ entity, rowId, prefill, onClose, onChange
               )
             })}
           </div>
-          {entity.children.map((child) => (
-            <LinesEditor key={child.key} child={child} lines={children[child.key] || []} entityKey={entity.key} disabled={!canEdit}
-              computed={dirty && preview?.children?.[child.key] ? preview.children[child.key] : (row?.[child.key] || [])}
-              onChange={(lines) => setChildren((c) => ({ ...c, [child.key]: lines }))} />
-          ))}
+          {entity.children.map((child) => {
+            if (child.writable === false) {
+              // lignes calculées par le serveur (besoins prévus…) : celles de l'aperçu pendant la saisie
+              const lines = (dirty && preview?.lines?.[child.key]) || row?.[child.key] || []
+              return <LinesEditor key={child.key} child={child} lines={lines} computed={lines} entityKey={entity.key} disabled />
+            }
+            return (
+              <LinesEditor key={child.key} child={child} lines={children[child.key] || []} entityKey={entity.key} disabled={!canEdit}
+                computed={dirty && preview?.children?.[child.key] ? preview.children[child.key] : (row?.[child.key] || [])}
+                onChange={(lines) => setChildren((c) => ({ ...c, [child.key]: lines }))} />
+            )
+          })}
           {dirty && canEdit ? <p className="xsmall subtle">{t('entity.unsaved')}</p> : null}
         </form>
       )}

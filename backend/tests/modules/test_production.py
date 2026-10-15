@@ -151,7 +151,13 @@ def test_draft_forecast_from_the_demo_bills(client):
     assert {k: listed[k] for k in FIGURES} == {k: order[k] for k in FIGURES} and "components" not in listed
     # l'aperçu d'une saisie calcule les mêmes chiffres, sans rien enregistrer
     preview = client.post(f"{BASE}/orders/preview", json={"article_id": kit, "quantity": 3}).json()
-    assert preview == {"computed": {k: order[k] for k in FIGURES}, "children": {}}
+    assert preview["computed"] == {k: order[k] for k in FIGURES} and preview["children"] == {}
+    # … et les lignes prévues, complètes, pour les afficher pendant la saisie
+    assert [(c["article_id__label"], c["quantity"]) for c in preview["lines"]["components"]] == [
+        (c["article_id__label"], c["quantity"]) for c in order["components"]]
+    assert [o["planned_minutes"] for o in preview["lines"]["operations"]] == [39, 17, 60]
+    six = client.post(f"{BASE}/orders/preview", json={"article_id": kit, "quantity": 6}).json()["lines"]
+    assert [c["quantity"] for c in six["components"]] == [6, 153, 61.8, 6, 24]
     assert db.fetch_one("SELECT COUNT(*) AS n FROM production_orders")["n"] == count + 1
     # la prévision suit la quantité…
     edited = client.put(f"{BASE}/orders/{order['id']}", json={"quantity": 6, "code": "X"}).json()
@@ -261,6 +267,27 @@ def test_costs_from_cost_prices_and_routing(client):
     assert bare["operations"] == []
     nothing = _order(client, _post(client, f"{TECH}/articles", {"name": "Prototype", "kind": "finished"})["id"], 3)
     assert nothing["components"] == [] and [nothing[k] for k in FIGURES] == [None, None, None, None, 0, False]
+
+
+def test_completed_order_keeps_its_costs(client):
+    """Un ordre terminé garde les coûts du jour de la fin de fabrication ; un ordre en cours suit les prix."""
+    p = _product(client)
+    done = _order(client, p["box"], 10)
+    _run(client, done, "release")
+    _run(client, done, "complete")
+    running = _order(client, p["box"], 10)
+    _run(client, running, "release")
+    keys = ("material_cost", "labour_cost", "total_cost", "unit_cost")
+    before = client.get(f"{BASE}/orders/{done['id']}").json()
+    assert tuple(before[k] for k in keys) == (27.7, 90, 117.7, 11.77)
+    client.put(f"{TECH}/articles/{p['board']}", json={"purchase_price": 1})
+    client.put(f"{TECH}/workcenters/{p['press']}", json={"hourly_cost": 72})
+    after = client.get(f"{BASE}/orders/{done['id']}").json()
+    assert tuple(after[k] for k in keys) == (27.7, 90, 117.7, 11.77)
+    assert [o["cost"] for o in after["operations"]] == [60, 30]
+    assert tuple(_listed(client, done)[k] for k in keys) == (27.7, 90, 117.7, 11.77)
+    moving = client.get(f"{BASE}/orders/{running['id']}").json()
+    assert (moving["material_cost"], moving["labour_cost"]) == (31.5, 102)
 
 
 def test_shortages_follow_the_stock(client):

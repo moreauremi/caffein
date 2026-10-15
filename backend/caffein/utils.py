@@ -66,6 +66,18 @@ def fmt_money(amount: float | None, currency: str = "€") -> str:
     return f"{sign}{NBSP.join(groups)},{decimals}{NBSP}{currency}"
 
 
+def fmt_number(value: float | int) -> str:
+    """1e9 → '1 000 000 000', 1250.5 → '1 250,5' : chiffres groupés, virgule décimale, jamais de notation scientifique."""
+    text = f"{float(value):.6f}".rstrip("0").rstrip(".")
+    sign, text = ("-", text[1:]) if text.startswith("-") else ("", text)
+    integer, _, decimals = text.partition(".")
+    groups = []
+    while integer:
+        groups.insert(0, integer[-3:])
+        integer = integer[:-3]
+    return f"{sign}{NBSP.join(groups) or '0'}{',' + decimals if decimals else ''}"
+
+
 def fmt_date(value: object) -> str:
     d = parse_date(value)
     return d.strftime("%d/%m/%Y") if d else ""

@@ -51,10 +51,11 @@ def stored_lines(order_ids: list) -> dict[int, dict[str, list[dict]]]:
     if not ids:
         return out
     marks = ", ".join("?" for _ in ids)
-    for line in db.fetch_all(f"SELECT order_id, article_id, quantity FROM production_order_components "
+    for line in db.fetch_all(f"SELECT order_id, article_id, quantity, unit_cost FROM production_order_components "
                              f"WHERE order_id IN ({marks}) ORDER BY order_id, position, id", tuple(ids)):
         out[line.pop("order_id")]["components"].append(line)
-    for line in db.fetch_all(f"SELECT order_id, workcenter_id, description, planned_minutes FROM production_order_operations "
+    for line in db.fetch_all(f"SELECT order_id, workcenter_id, description, planned_minutes, hourly_cost "
+                             f"FROM production_order_operations "
                              f"WHERE order_id IN ({marks}) ORDER BY order_id, position, id", tuple(ids)):
         out[line.pop("order_id")]["operations"].append(line)
     return out
@@ -129,9 +130,11 @@ def figures(row: dict, components: list[dict], operations: list[dict], ctx: Cont
                 short += 1
         else:
             line["available"] = line["shortage"] = None
-        material += need * (ctx.cost(line.get("article_id")) or 0)
+        price = line.get("unit_cost")  # figé à la fin de la fabrication, sinon le coût de revient actuel
+        material += need * ((price if price is not None else ctx.cost(line.get("article_id"))) or 0)
     for line in operations:
-        rate = ctx.workcenter(line.get("workcenter_id")).get("hourly_cost") or 0
+        rate = line.get("hourly_cost")
+        rate = (rate if rate is not None else ctx.workcenter(line.get("workcenter_id")).get("hourly_cost")) or 0
         line["cost"] = round((line.get("planned_minutes") or 0) / 60 * rate, 2)
         labour += line["cost"]
     material_cost = round(material, 2) if components else None
