@@ -238,6 +238,127 @@ l'administrateur l'active dans Paramètres → Modules. Sur une nouvelle install
 Exemples à suivre : `modules/sales/entities.py` (commande client : lignes, actions, événement),
 `modules/technical/` (référentiel, coûts calculés, services), `modules/stock/` (vues SQL, abonnements aux événements).
 
+### Exemple complet : un module « Flotte » en un fichier
+
+Un module minimal mais complet : une table, une entité avec un champ calculé en Python, une vue en colonnes, une
+page, un chiffre clé (mis en avant quand un contrôle approche), un raccourci et des données de démonstration.
+L'interface (liste, recherche, filtres, tableau, fiche, export) est générée sans une ligne de React. Ce code passe le
+contrat des modules tel quel.
+
+`backend/caffein/modules/fleet/__init__.py` :
+
+```python
+# SPDX-License-Identifier: AGPL-3.0-or-later
+"""Flotte : les véhicules de l'entreprise et leurs contrôles techniques (exemple de docs/modules.md)."""
+
+from __future__ import annotations
+
+from datetime import timedelta
+
+from ... import db
+from ...core.entities import Entity, Field, save_row
+from ...core.modules import MANAGE, Kpi, Module, Page, Shortcut
+from ...utils import parse_date, today
+
+MIGRATIONS = [(1, """
+CREATE TABLE IF NOT EXISTS fleet_vehicles (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    code TEXT NOT NULL DEFAULT '',
+    name TEXT NOT NULL DEFAULT '',
+    plate TEXT NOT NULL DEFAULT '',
+    mileage INTEGER,
+    next_inspection TEXT,
+    status TEXT NOT NULL DEFAULT 'available',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+""")]
+
+STATUSES = (("available", ("Disponible", "Available"), "good"), ("in_use", ("En mission", "In use"), "info"),
+            ("garage", ("Au garage", "At the garage"), "warn"))
+
+
+def _days_left(rows: list[dict]) -> None:
+    """Calcul en Python : jours avant le prochain contrôle technique (négatif = en retard)."""
+    for row in rows:
+        due = parse_date(row.get("next_inspection"))
+        row["days_left"] = (due - today()).days if due else None
+
+
+VEHICLES = Entity(
+    module="fleet", name="vehicles", table="fleet_vehicles", label=("Véhicule", "Vehicle"),
+    plural=("Véhicules", "Vehicles"), title="name", subtitle="plate", order_by="name COLLATE NOCASE",
+    icon="Car", board="status", compute=_days_left,
+    fields=[
+        Field("code", ("Numéro", "Number"), type="code", prefix="VEH", yearly=False, readonly=True, list=True),
+        Field("name", ("Véhicule", "Vehicle"), required=True, list=True, search=True),
+        Field("plate", ("Immatriculation", "Plate"), list=True, search=True, maxlength=12),
+        Field("mileage", ("Kilométrage", "Mileage"), type="int", min=0, max=2_000_000),
+        Field("next_inspection", ("Prochain contrôle technique", "Next inspection"), type="date", list=True),
+        Field("status", ("Statut", "Status"), type="enum", choices=STATUSES, default="available", list=True,
+              filter=True),
+        Field("days_left", ("Jours avant le contrôle", "Days to inspection"), type="int", computed=True, list=True),
+    ],
+)
+
+
+def _to_inspect() -> dict:
+    limit = (today() + timedelta(days=30)).isoformat()
+    n = db.fetch_one("SELECT COUNT(*) AS n FROM fleet_vehicles WHERE next_inspection <= ?", (limit,))["n"]
+    return {"value": n, "count": n}
+
+
+def _seed_demo() -> None:
+    for name, plate, days in (("Kangoo de livraison", "GA-123-BC", 12), ("Clio de l'atelier", "FB-456-DE", 200)):
+        save_row(VEHICLES, {"name": name, "plate": plate, "next_inspection": (today() + timedelta(days=days)).isoformat()},
+                 MANAGE)
+
+
+MODULE = Module(
+    key="fleet", slug="flotte", label=("Flotte", "Fleet"), icon="Car", order=88,
+    description=("Les véhicules de l'entreprise et leurs contrôles techniques.", "Company vehicles and their inspections."),
+    migrations=MIGRATIONS, entities=[VEHICLES],
+    pages=[Page("vehicules", ("Véhicules", "Vehicles"), entity="fleet.vehicles", icon="Car")],
+    kpis=[Kpi("to_inspect", ("Véhicules à faire contrôler", "Vehicles due for inspection"), _to_inspect, icon="Car",
+              path="/flotte/vehicules", alert=lambda d: d["value"] > 0)],
+    shortcuts=[Shortcut("new_vehicle", ("Nouveau véhicule", "New vehicle"), "/flotte/vehicules?new=1", icon="Car")],
+    seed_demo=_seed_demo, reset_tables=("fleet_vehicles",),
+)
+```
+
+Dans `backend/caffein/modules/__init__.py` : `from . import …, fleet, …` et `fleet.MODULE` dans `MODULES`.
+
+`backend/tests/modules/test_fleet.py` (le contrat vérifie déjà la déclaration, les tables, les écrans, la
+désactivation ; ces tests ne vérifient que la logique propre au module) :
+
+```python
+# SPDX-License-Identifier: AGPL-3.0-or-later
+"""Flotte : l'exemple de docs/modules.md (le contrat des modules vérifie le reste)."""
+
+from datetime import timedelta
+
+from caffein.utils import today
+
+from .helpers import login_as, make_member
+
+BASE = "/api/data/fleet/vehicles"
+
+
+def test_vehicle_and_days_to_inspection(client):
+    due = (today() + timedelta(days=10)).isoformat()
+    vehicle = client.post(BASE, json={"name": "Trafic", "plate": "HC-789-FG", "next_inspection": due}).json()
+    assert vehicle["code"].startswith("VEH-") and vehicle["days_left"] == 10 and vehicle["status"] == "available"
+    assert client.post(BASE, json={"name": "Trafic", "mileage": -5}).json()["detail"] == "Kilométrage : 0 au minimum."
+    kpi = next(k for k in client.get("/api/home").json()["kpis"] if k["key"] == "fleet.to_inspect")
+    assert kpi["value"] == 2 and kpi["alert"] is True  # le Kangoo de la démonstration et le Trafic
+
+
+def test_read_only_member(client):
+    make_member("flotte@test.local", "readonly")
+    reader = login_as("flotte@test.local")
+    assert reader.get(BASE).status_code == 200 and reader.post(BASE, json={"name": "x"}).status_code == 403
+```
+
 ## Les instances existantes
 
 La mise à jour est automatique et conserve tout :
