@@ -30,6 +30,13 @@ s'activent et se règlent par utilisateur. Voir `docs/modules.md`.
   analyse locale prend le relais. Les vues s'enregistrent par utilisateur et se rechargent sans IA. Lecture seule : une
   demande de modification est refusée. Les chiffres clés de tous les modules accessibles sont aussi proposés.
   Voir `docs/tableau-de-bord-ia.md`.
+- **Vue « Tableau »** : les listes à statuts (commandes, absences, notes de frais, opportunités, tâches…) s'affichent
+  aussi en colonnes, une par statut, avec le nombre de fiches et le total de chaque colonne calculés par le serveur.
+- **Accueil** : une section « À traiter » (retards, ruptures, validations en attente), puis une carte par module.
+- **Contrat des modules** (`backend/tests/test_module_contract.py`) : tout module, présent ou futur, est vérifié sans
+  test à écrire — déclaration, tables, écrans sur les données de démonstration, chiffres clés sur une base vide, rôle
+  « Lecture seule », et désactivation sans casser les autres modules.
+- Les listes de choix ne proposent plus les fiches inactives (article arrêté, fournisseur, salarié parti).
 - Migration 3 : table `dashboard_views`.
 
 ### Modifié
@@ -39,6 +46,15 @@ s'activent et se règlent par utilisateur. Voir `docs/modules.md`.
 - Les adresses changent (`/ventes/factures`, `/comptabilite/tva`…) ; les anciennes (`/factures`, `/tva`, `/urssaf`,
   `/documents`, `/automatisations`, `/vues`) redirigent, les liens `/f/…` envoyés aux clients ne changent pas.
 - Les scripts d'automatisation appartiennent à un module : ils s'arrêtent quand le module est désactivé.
+- Les montants sont arrondis au centime « à la française » (la moitié vers le haut : 0,125 € → 0,13 €) au lieu de
+  l'arrondi au pair de Python.
+
+### Corrigé
+- Enregistrer une fiche n'efface plus les colonnes de ses lignes invisibles pour l'utilisateur (référence vers un
+  module désactivé, champ sensible) : les lignes sont mises à jour par identifiant.
+- Une commande annulée peut être supprimée (la règle du module décide, même si la fiche est verrouillée).
+- Une case oui/non envoyée vide garde sa valeur au lieu de faire échouer l'enregistrement.
+- Deux réceptions simultanées du même document ne comptent plus deux fois le stock.
 
 ## [2.0.0] — 2026-10-07
 
