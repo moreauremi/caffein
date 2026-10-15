@@ -199,7 +199,7 @@ ORDER_LINE_FIELDS = [
 
 ORDERS = Entity(
     module="sales", name="orders", table="sales_orders", label=("Commande client", "Sales order"),
-    plural=("Commandes clients", "Sales orders"), title="code", order_by="id DESC", icon="ShoppingBag",
+    plural=("Commandes clients", "Sales orders"), title="code", order_by="id DESC", icon="ShoppingBag", board="status",
     description=("Confirmez, livrez (sortie de stock si la Logistique est active) puis facturez en un clic.",
                  "Confirm, deliver (stock is updated when Logistics is on) then invoice in one click."),
     fields=[

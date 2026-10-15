@@ -48,6 +48,17 @@ def list_rows(module: str, name: str, request: Request, q: str | None = Query(No
     return entities.list_rows(entity, level, q=q, filters=filters, sort=sort, direction=dir, page=page, size=size)
 
 
+@router.get("/{module}/{name}/board")
+def board(module: str, name: str, request: Request, q: str | None = Query(None, max_length=100),
+          sort: str | None = Query(None, max_length=60), dir: str = Query("asc", pattern="^(asc|desc)$"),
+          size: int = Query(30, ge=1, le=entities.MAX_PAGE), user: dict = Depends(current_user)) -> dict:
+    """Vue en colonnes (une par statut) : nombre de fiches et totaux calculés par le serveur."""
+    entity = _entity(module, name)
+    level = _level(user, entity, READ)
+    filters = {k[2:]: v for k, v in request.query_params.items() if k.startswith("f_")}
+    return entities.board(entity, level, q=q, filters=filters, sort=sort, direction=dir, size=size)
+
+
 @router.get("/{module}/{name}/export")
 def export(module: str, name: str, request: Request, q: str | None = Query(None, max_length=100),
            sort: str | None = Query(None, max_length=60), dir: str = Query("asc", pattern="^(asc|desc)$"),

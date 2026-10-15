@@ -192,6 +192,10 @@ def test_screens_work_on_demo_data(admin, module):
                 value = fld["choices"][0]["value"] if fld.get("choices") else "1"
                 res = admin.get(base, params={f"f_{fld['name']}": value})
                 assert res.status_code == 200, f"{entity.key} filtre {fld['name']} : {res.text}"
+        if entity.board:
+            board = admin.get(f"{base}/board")
+            assert board.status_code == 200, f"{entity.key} colonnes : {board.text}"
+            assert sum(c["count"] for c in board.json()["columns"]) <= listing.json()["total"], entity.key
         export = admin.get(f"{base}/export")
         assert export.status_code == 200 and export.headers["content-type"].startswith("text/csv"), entity.key
         assert admin.get(f"{base}/options", params={"q": ""}).status_code == 200

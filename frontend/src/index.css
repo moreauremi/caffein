@@ -264,6 +264,7 @@ img, svg { display: block; }
 .field .segmented { align-self: flex-start; }
 .segmented { display: inline-flex; padding: 3px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 11px; gap: 2px; }
 .segmented button {
+  display: inline-flex; align-items: center; gap: 6px;
   border: 0; background: transparent; height: 32px; padding: 0 13px; border-radius: 8px;
   font-size: 13.5px; font-weight: 550; color: var(--muted); cursor: pointer; white-space: nowrap;
 }
@@ -568,6 +569,24 @@ img, svg { display: block; }
 .th-sort:hover { color: var(--fg); }
 .row-open { padding: 0; border: 0; background: none; cursor: pointer; font: inherit; color: var(--fg); font-weight: 600; text-align: left; }
 .entity-table.is-loading tbody { opacity: 0.55; }
+/* Vue en colonnes (une par statut) : chaque colonne défile avec la page, le tableau défile seul en largeur */
+.board { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(200px, 1fr); gap: 14px; overflow-x: auto; align-items: start; padding-bottom: 6px; }
+.board-col { background: var(--surface-2); border: 1px solid var(--border); border-radius: 14px; padding: 10px; min-width: 0; }
+.board-col-head { display: flex; align-items: center; gap: 8px; padding: 2px 4px 10px; }
+.board-col-count { min-width: 22px; padding: 1px 7px; border-radius: 999px; background: var(--surface); border: 1px solid var(--border); font-size: 12px; text-align: center; color: var(--muted); }
+.board-col-amount { margin-left: auto; color: var(--fg); white-space: nowrap; }
+.board-cards { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.board-card {
+  display: flex; flex-direction: column; gap: 4px; width: 100%; min-width: 0; text-align: left; padding: 10px 12px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 10px; color: inherit; font: inherit; cursor: pointer;
+}
+.board-card:hover { border-color: var(--border-strong); }
+.board-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.board-card-title { font-weight: 600; font-size: 14px; }
+.board-card-line { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.board-more { margin-top: 8px; }
+.board-empty { padding: 4px; margin: 0; }
+@media (max-width: 640px) { .board { grid-auto-columns: minmax(78%, 1fr); } }
 .link-plain { color: inherit; text-decoration: none; border-bottom: 1px dotted var(--border-strong); }
 .link-plain:hover { color: var(--accent-ink); border-bottom-color: currentColor; }
 .pre-line { white-space: pre-line; }

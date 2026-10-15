@@ -476,6 +476,30 @@ def test_csv_export(client):
     assert login_as("export@test.local").get("/api/data/sales/clients/export").status_code == 403
 
 
+def test_board_view(client, restore_modules):
+    """Vue en colonnes : le serveur range les fiches par statut et calcule le nombre et le total de chaque colonne."""
+    assert client.get("/api/meta").json()["entities"]["sales.orders"]["board"] == "status"
+    board = client.get("/api/data/sales/orders/board").json()
+    assert [c["value"] for c in board["columns"]] == ["draft", "confirmed", "delivered", "invoiced", "cancelled"]
+    assert board["field"] == "status" and board["amount_field"] == "total_ht"
+    rows = client.get("/api/data/sales/orders", params={"size": 200}).json()["rows"]
+    for column in board["columns"]:
+        mine = [r for r in rows if r["status"] == column["value"]]
+        assert column["count"] == len(mine) and {r["id"] for r in column["rows"]} == {r["id"] for r in mine}
+        assert column["amount"] == round(sum(r["total_ht"] for r in mine), 2)
+    # recherche et filtres de la liste ; le filtre sur le statut n'a pas de sens en colonnes
+    client_id = rows[0]["client_id"]
+    filtered = client.get("/api/data/sales/orders/board", params={"f_client_id": client_id, "f_status": "draft"}).json()
+    assert sum(c["count"] for c in filtered["columns"]) == len([r for r in rows if r["client_id"] == client_id])
+    assert sum(c["count"] for c in client.get("/api/data/sales/orders/board", params={"q": "zzz"}).json()["columns"]) == 0
+    assert all(len(c["rows"]) <= 1 for c in client.get("/api/data/sales/orders/board", params={"size": 1}).json()["columns"])
+    assert client.get("/api/data/sales/clients/board").status_code == 404  # pas de vue en colonnes
+    make_member("board@test.local", role_id("readonly"))
+    assert login_as("board@test.local").get("/api/data/sales/orders/board").status_code == 200
+    client.put("/api/settings/modules/sales", json={"enabled": False})
+    assert client.get("/api/data/sales/orders/board").status_code == 404
+
+
 def test_module_kpis_in_views(client):
     from caffein import dashboard
 

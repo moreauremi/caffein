@@ -136,6 +136,7 @@ class Entity:
     delete_level: int = MANAGE
     icon: str | None = None
     description: Label | None = None
+    board: str | None = None                                      # champ à choix (statut…) : vue en colonnes
 
     def __post_init__(self) -> None:
         for name in (self.module, self.name, self.table):
@@ -146,6 +147,10 @@ class Entity:
             raise ValueError(f"Champs en double dans {self.key}")
         if self.title not in names:
             raise ValueError(f"{self.key} : le champ titre {self.title!r} n'est pas déclaré.")
+        if self.board is not None:
+            board = self.field(self.board)
+            if board is None or board.type != "enum" or board.computed:
+                raise ValueError(f"{self.key} : la vue en colonnes suit un champ à choix enregistré ({self.board!r}).")
 
     @property
     def key(self) -> str:
@@ -251,10 +256,8 @@ def _coerce_filter(fld: Field, value: str) -> Any:
     return value
 
 
-def list_rows(entity: Entity, level: int, *, q: str | None = None, filters: dict[str, str] | None = None,
-              sort: str | None = None, direction: str = "asc", page: int = 1, size: int = 50) -> dict:
-    fields = visible_fields(entity, entity.fields, level)
-    cols, joins = _select(entity, fields)
+def _where(entity: Entity, fields: list[Field], q: str | None, filters: dict[str, str] | None) -> tuple[list[str], list]:
+    """Conditions de la recherche et des filtres d'une liste."""
     where, params = [], []
     if q:
         terms = []
@@ -273,23 +276,86 @@ def list_rows(entity: Entity, level: int, *, q: str | None = None, filters: dict
             params.append(_coerce_filter(fld, value))
         except ValueError as exc:
             raise ValueError(f"Filtre « {name} » invalide.") from exc
+    return where, params
+
+
+def _order(entity: Entity, fields: list[Field], sort: str | None, direction: str) -> str:
     order = entity.order_by.replace("t.", "")
     order = ", ".join(f"t.{part.strip()}" for part in order.split(","))
     if sort:
         fld = entity.field(sort)
         if sort == "id" or (fld is not None and fld in fields and not fld.computed):
             order = f"t.{sort} {'DESC' if direction == 'desc' else 'ASC'}, t.id DESC"
-    size = max(1, min(int(size or 50), MAX_PAGE))
-    page = max(1, int(page or 1))
-    sql_where = f"WHERE {' AND '.join(where)}" if where else ""
-    total = db.fetch_one(f"SELECT COUNT(*) AS n FROM {entity.table} t {sql_where}", tuple(params))["n"]
-    rows = db.fetch_all(f"SELECT {cols} FROM {entity.table} t {joins} {sql_where} ORDER BY {order} LIMIT ? OFFSET ?",
-                        (*params, size, (page - 1) * size))
+    return order
+
+
+def _sql_where(where: list[str]) -> str:
+    return f"WHERE {' AND '.join(where)}" if where else ""
+
+
+def _rows(entity: Entity, fields: list[Field], where: list[str], params: list, order: str, size: int, offset: int) -> list[dict]:
+    """Une page de fiches, avec les libellés des références et les champs calculés."""
+    cols, joins = _select(entity, fields)
+    rows = db.fetch_all(f"SELECT {cols} FROM {entity.table} t {joins} {_sql_where(where)} ORDER BY {order} LIMIT ? OFFSET ?",
+                        (*params, size, offset))
     _bools(rows, fields)
     if entity.compute and rows:
         entity.compute(rows)
     _strip_hidden(rows, entity, fields)
+    return rows
+
+
+def list_rows(entity: Entity, level: int, *, q: str | None = None, filters: dict[str, str] | None = None,
+              sort: str | None = None, direction: str = "asc", page: int = 1, size: int = 50) -> dict:
+    fields = visible_fields(entity, entity.fields, level)
+    where, params = _where(entity, fields, q, filters)
+    order = _order(entity, fields, sort, direction)
+    size = max(1, min(int(size or 50), MAX_PAGE))
+    page = max(1, int(page or 1))
+    total = db.fetch_one(f"SELECT COUNT(*) AS n FROM {entity.table} t {_sql_where(where)}", tuple(params))["n"]
+    rows = _rows(entity, fields, where, params, order, size, (page - 1) * size)
     return {"rows": rows, "total": total, "page": page, "size": size}
+
+
+BOARD_SUM_LIMIT = 5000  # au-delà, pas de total pour un montant calculé (il faudrait calculer chaque fiche)
+
+
+def board(entity: Entity, level: int, *, q: str | None = None, filters: dict[str, str] | None = None,
+          sort: str | None = None, direction: str = "asc", size: int = 30) -> dict:
+    """Vue en colonnes, une par valeur du champ `Entity.board` (statut, étape…), avec la recherche et les filtres
+    de la liste. Le nombre de fiches et le total de chaque colonne (premier montant affiché dans la liste)
+    sont calculés par le serveur ; chaque colonne porte ses `size` premières fiches."""
+    if not entity.board:
+        raise NotFound("Cette liste n'a pas de vue en colonnes.")
+    fields = visible_fields(entity, entity.fields, level)
+    column = entity.field(entity.board)
+    if column not in fields:
+        raise NotFound("Cette liste n'a pas de vue en colonnes.")
+    where, params = _where(entity, fields, q, {k: v for k, v in (filters or {}).items() if k != column.name})
+    order = _order(entity, fields, sort, direction)
+    size = max(1, min(int(size or 30), MAX_PAGE))
+    amount = next((f for f in fields if f.type == "money" and f.list and not f.hidden), None)
+    stored = f", SUM(t.{amount.name}) AS amount" if amount and not amount.computed else ""
+    stats = {r["value"]: dict(r) for r in db.fetch_all(
+        f"SELECT t.{column.name} AS value, COUNT(*) AS n{stored} FROM {entity.table} t {_sql_where(where)} "
+        f"GROUP BY t.{column.name}", tuple(params))}
+    if amount and amount.computed:  # montant calculé en Python (total des lignes…) : sur toutes les fiches de la vue
+        if sum(stat["n"] for stat in stats.values()) <= BOARD_SUM_LIMIT:
+            for row in _rows(entity, fields, where, params, order, BOARD_SUM_LIMIT, 0):
+                stat = stats.get(row.get(column.name))
+                if stat is not None:
+                    stat["amount"] = (stat.get("amount") or 0) + (row.get(amount.name) or 0)
+        else:
+            amount = None
+    columns = []
+    for choice in column.choices:
+        stat = stats.get(choice[0]) or {}
+        count = stat.get("n", 0)
+        rows = _rows(entity, fields, [*where, f"t.{column.name} = ?"], [*params, choice[0]], order, size, 0) if count else []
+        columns.append({"value": choice[0], "label": choice[1], "tone": choice[2] if len(choice) > 2 else None,
+                        "count": count, "amount": round(stat.get("amount") or 0, 2) if amount else None, "rows": rows})
+    return {"field": column.name, "amount_field": amount.name if amount else None,
+            "amount_label": amount.label if amount else None, "columns": columns}
 
 
 def _csv_value(fld: Field, row: dict, language: str) -> str:
@@ -793,7 +859,7 @@ def meta(entity: Entity, level: int) -> dict:
     return {
         "key": entity.key, "module": entity.module, "name": entity.name, "label": entity.label, "plural": entity.plural,
         "title": entity.title, "subtitle": entity.subtitle, "icon": entity.icon, "description": entity.description,
-        "readonly": entity.readonly, "fields": [_field_meta(f) for f in fields],
+        "readonly": entity.readonly, "board": entity.board, "fields": [_field_meta(f) for f in fields],
         "children": [{"key": c.key, "label": c.label, "min_rows": c.min_rows, "writable": writable(c),
                       "fields": [_field_meta(f) for f in visible_fields(entity, c.fields, level) if not f.hidden]}
                      for c in entity.children],
@@ -805,7 +871,7 @@ def meta(entity: Entity, level: int) -> dict:
     }
 
 
-__all__ = ["Field", "Child", "Action", "Entity", "ENTITIES", "register", "get", "list_rows", "get_row", "save_row",
+__all__ = ["Field", "Child", "Action", "Entity", "ENTITIES", "register", "get", "list_rows", "board", "get_row", "save_row",
            "delete_row", "run_action", "options", "meta", "next_code", "visible_fields", "preview", "ref_label", "usages",
            "export_rows",
            "REFERENCES",

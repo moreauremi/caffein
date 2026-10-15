@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, Download, Plus, Search, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, Download, Kanban, List, Plus, Search, X } from 'lucide-react'
 import { useLanguage } from '../../context/LanguageContext'
 import { useMeta } from '../../context/MetaContext'
 import { useApi } from '../../lib/useApi'
 import { useDebounced } from '../../lib/useDebounced'
 import NamedIcon from '../NamedIcon'
 import { EmptyState, Spinner } from '../ui'
+import EntityBoard from './EntityBoard'
 import EntityDrawer from './EntityDrawer'
 import FieldValue from './FieldValue'
 import RefSelect from './RefSelect'
@@ -24,8 +25,9 @@ function exportQuery(listQuery, language) {
   return query.toString()
 }
 
-// Écran généré pour une entité déclarée par un module : liste (recherche, filtres, tri, pages) et fiche.
-// L'état est dans l'adresse (?q=…&f_status=…&sort=…&id=12) : on peut partager un lien vers une fiche ou une liste filtrée.
+// Écran généré pour une entité déclarée par un module : liste (recherche, filtres, tri, pages) ou colonnes par
+// statut (Entity.board), et fiche. L'état est dans l'adresse (?q=…&f_status=…&sort=…&view=board&id=12) :
+// on peut partager un lien vers une fiche ou une liste filtrée.
 export default function EntityPage({ entityKey }) {
   const { t, pick } = useLanguage()
   const { entity: entityMeta } = useMeta()
@@ -54,18 +56,28 @@ export default function EntityPage({ entityKey }) {
     }
     return query.toString()
   }, [params])
-  const list = useApi(entity ? `/api/data/${entity.module}/${entity.name}?${listQuery}` : null)
+  const isBoard = Boolean(entity?.board) && params.get('view') === 'board'
+  const boardQuery = useMemo(() => {
+    const query = new URLSearchParams(listQuery)
+    query.delete('size')
+    query.delete('page')
+    return query.toString()
+  }, [listQuery])
+  const list = useApi(entity && !isBoard ? `/api/data/${entity.module}/${entity.name}?${listQuery}` : null)
+  const board = useApi(isBoard ? `/api/data/${entity.module}/${entity.name}/board?${boardQuery}` : null)
   const { language } = useLanguage()
 
   if (!entity) return <EmptyState title={t('nav.no_access')} />
 
   const columns = entity.fields.filter((f) => f.list)
-  const filters = entity.fields.filter((f) => f.filter)
+  // En colonnes, chaque statut a déjà sa colonne : pas de filtre sur le statut
+  const filters = entity.fields.filter((f) => f.filter && !(isBoard && f.name === entity.board))
   const activeFilters = filters.filter((f) => params.get(`f_${f.name}`) !== null)
   const sort = params.get('sort')
   const dir = params.get('dir') || 'asc'
   const page = Number(params.get('page') || 1)
   const data = list.data
+  const total = isBoard ? board.data?.columns.reduce((n, col) => n + col.count, 0) : data?.total
   const pages = data ? Math.max(1, Math.ceil(data.total / PAGE_SIZE)) : 1
   const openId = params.get('id')
   const creating = params.get('new') !== null
@@ -140,8 +152,19 @@ export default function EntityPage({ entityKey }) {
           </button>
         )}
         <span className="grow" />
-        {data ? <span className="small muted">{t('entity.count', { n: data.total })}</span> : null}
-        {data?.total ? (
+        {total !== undefined ? <span className="small muted">{t('entity.count', { n: total })}</span> : null}
+        {entity.board ? (
+          <div className="segmented" role="group" aria-label={t('entity.view')}>
+            <button type="button" className={isBoard ? '' : 'active'} aria-pressed={!isBoard} onClick={() => update({ view: null })}>
+              <List size={14} /> {t('entity.view_list')}
+            </button>
+            <button type="button" className={isBoard ? 'active' : ''} aria-pressed={isBoard}
+              onClick={() => update({ view: 'board', page: null, [`f_${entity.board}`]: null })}>
+              <Kanban size={14} /> {t('entity.view_board')}
+            </button>
+          </div>
+        ) : null}
+        {total ? (
           <a className="btn sm ghost" title={t('entity.export_hint')} download
             href={`/api/data/${entity.module}/${entity.name}/export?${exportQuery(listQuery, language)}`}>
             <Download size={14} /> {t('entity.export')}
@@ -149,7 +172,12 @@ export default function EntityPage({ entityKey }) {
         ) : null}
       </div>
 
-      <div className="card flush">
+      {isBoard ? (
+        <EntityBoard entity={entity} data={board.data} error={board.error} onOpen={(id) => update({ id, new: null })}
+          onShowAll={(value) => update({ view: null, page: null, [`f_${entity.board}`]: String(value) })} />
+      ) : null}
+
+      {!isBoard ? <div className="card flush">
         {list.error ? <EmptyState title={list.error.message} /> : null}
         {!data && !list.error ? <div style={{ padding: 24 }}><Spinner /></div> : null}
         {data && data.rows.length === 0 ? (
@@ -202,9 +230,9 @@ export default function EntityPage({ entityKey }) {
             </table>
           </div>
         ) : null}
-      </div>
+      </div> : null}
 
-      {data && pages > 1 && (
+      {!isBoard && data && pages > 1 && (
         <div className="row end" style={{ marginTop: 12 }}>
           <span className="small muted">{t('entity.page', { page, pages })}</span>
           <button type="button" className="icon-btn bordered" disabled={page <= 1} aria-label={t('entity.prev')}
@@ -218,7 +246,8 @@ export default function EntityPage({ entityKey }) {
         <EntityDrawer key={openId || 'new'} entity={entity} rowId={openId ? Number(openId) : null} prefill={prefill}
           onClose={closeDrawer}
           onChanged={(row, created) => {
-            list.reload()
+            if (isBoard) board.reload()
+            else list.reload()
             if (created && row) update({ id: row.id, new: null })
           }} />
       )}
