@@ -533,3 +533,17 @@ def test_out_of_range_numbers_are_refused(client):
         res = client.post("/api/data/sales/orders", json={"client_id": value})
         assert res.status_code == 400 and "hors limites" in res.json()["detail"]
     assert client.get("/api/data/sales/orders", params={"f_client_id": str(huge)}).status_code == 400
+
+
+def test_demo_team(demo):
+    from caffein.seed import DEMO_TEAM, seed_demo_team
+
+    seed_demo_team()
+    seed_demo_team()  # sans doublon
+    emails = [e for e, *_ in DEMO_TEAM]
+    rows = db.fetch_all(f"SELECT email, role_id FROM users WHERE email IN ({', '.join('?' for _ in emails)})", tuple(emails))
+    assert len(rows) == len(DEMO_TEAM) and all(r["role_id"] for r in rows)
+    lea = auth.get_user_by_email("lea.bernard@studio-durand.example")
+    assert permissions.levels_for(auth.get_user(lea["id"]))["accounting"] == permissions.WRITE
+    for email in emails:
+        db.execute("DELETE FROM users WHERE email = ?", (email,))

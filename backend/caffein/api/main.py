@@ -38,12 +38,13 @@ async def lifespan(_app: FastAPI):
     db.init_db()
     auth.purge_expired_sessions()
     if config.DEMO_MODE:
-        from ..seed import is_empty, seed
+        from ..seed import is_empty, seed, seed_demo_team
 
         if is_empty():
             seed()
             log.info("Mode démo : données de démonstration créées.")
         auth.ensure_demo_user()
+        seed_demo_team()
     elif auth.count_users() == 0:
         log.info("Aucun compte : ouvrez %s pour lancer l'assistant d'installation.", config.APP_URL)
     if config.SCHEDULER_ENABLED:

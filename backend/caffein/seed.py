@@ -119,6 +119,32 @@ def business_tables() -> list[str]:
     return tables + [t for t in BUSINESS_TABLES if t not in tables]
 
 
+# Instance de démonstration : une équipe aux rôles différents, pour montrer les droits par module.
+# Mots de passe aléatoires et jamais affichés : on ne peut pas se connecter avec ces comptes.
+DEMO_TEAM = [
+    ("camille.roux@studio-durand.example", "Camille Roux", "sales", {}),
+    ("hugo.martin@studio-durand.example", "Hugo Martin", "production", {}),
+    ("lea.bernard@studio-durand.example", "Léa Bernard", "accountant", {"hr": 1}),
+    ("nina.lefevre@studio-durand.example", "Nina Lefèvre", "readonly", {"accounting": 0}),
+]
+
+
+def seed_demo_team() -> None:
+    """Membres de démonstration (mode démo seulement) ; ceux qui existent déjà sont laissés tels quels."""
+    import secrets
+
+    from . import auth
+    from .core import permissions
+
+    for email, name, role_key, overrides in DEMO_TEAM:
+        if auth.get_user_by_email(email):
+            continue
+        role = db.fetch_one("SELECT id FROM roles WHERE key = ?", (role_key,))
+        user = auth.create_user(email, secrets.token_urlsafe(24), name, "member", role_id=role["id"] if role else None)
+        if overrides:
+            permissions.set_user_overrides(user["id"], overrides)
+
+
 def is_empty() -> bool:
     return db.fetch_one("SELECT COUNT(*) AS n FROM clients")["n"] == 0
 
