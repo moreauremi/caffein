@@ -88,7 +88,7 @@ export default function Dashboard() {
                 <ul className="kpi-rows">
                   {kpis.map((kpi) => (
                     <li key={kpi.key}>
-                      <Link to={kpi.path || pagePath(module, module.pages[0])} className={`kpi-row ${kpi.alert ? 'alert' : ''}`}
+                      <Link to={kpi.path || pagePath(module, module.pages[0])} className={`kpi-row ${kpi.alert ? 'is-alert' : ''}`}
                         title={kpi.foot ? pick(kpi.foot, { n: kpi.count ?? 0 }) : undefined}>
                         <span className="grow">{pick(kpi.label)}</span>
                         <span className="mono nowrap">{kpiValue(kpi, language)}</span>

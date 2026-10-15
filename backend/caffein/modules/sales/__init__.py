@@ -38,7 +38,7 @@ MODULE = Module(
     kpis=[
         Kpi("to_collect", ("À encaisser", "To collect"), _summary_kpi("to_collect", "to_collect_count"), unit="money",
             foot=("{n} facture(s) en attente", "{n} pending invoice(s)"), icon="Wallet", path="/ventes/factures"),
-        Kpi("overdue", ("En retard", "Overdue"), _summary_kpi("overdue_total", "overdue_count"), unit="money",
+        Kpi("overdue", ("Factures en retard", "Overdue invoices"), _summary_kpi("overdue_total", "overdue_count"), unit="money",
             foot=("{n} facture(s) échue(s)", "{n} overdue invoice(s)"), icon="AlertTriangle",
             path="/ventes/factures?status=overdue", alert=lambda d: (d.get("value") or 0) > 0),
         Kpi("paid_month", ("Encaissé ce mois", "Collected this month"), _summary_kpi("paid_month", "paid_month_count"),
