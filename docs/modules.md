@@ -203,6 +203,12 @@ Un module avec des écrans sur mesure ajoute `frontend/src/modules/<clé>/index.
 2. L'ajouter à la liste `MODULES` de `backend/caffein/modules/__init__.py`.
 3. Écrire ses tests dans `backend/tests/modules/test_<clé>.py` (outils communs : `tests/modules/helpers.py`).
 
+Le **contrat** (`backend/tests/test_module_contract.py`) vérifie ensuite le nouveau module sans rien écrire : clé,
+adresse et libellés, icônes et écrans connus de l'interface, tables conformes aux entités et vidées par la
+réinitialisation, listes, tris, filtres, exports, fiches et aperçus sur les données de démonstration (chaque entité
+en a), chiffres clés calculables sur une base vide, rôle « Lecture seule » qui ne modifie rien, et surtout
+désactivation du module sans casser les autres.
+
 Au démarrage suivant, ses tables sont créées. Sur une instance existante, un nouveau module arrive **désactivé** :
 l'administrateur l'active dans Paramètres → Modules. Sur une nouvelle installation, l'assistant propose les modules.
 
