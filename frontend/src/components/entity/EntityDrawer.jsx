@@ -144,7 +144,8 @@ export default function EntityDrawer({ entity, rowId, prefill, onClose, onChange
 
   const footer = form && (
     <>
-      {!isNew && entity.can_delete && !locked && (
+      {/* le serveur dit si la fiche se supprime (droits, règle du module : une commande annulée…) */}
+      {!isNew && row?._deletable && (
         <ConfirmButton className="btn danger" confirmLabel={t('entity.delete_confirm')} onConfirm={remove}>
           <Trash2 size={15} /> {t('common.delete')}
         </ConfirmButton>

@@ -289,7 +289,8 @@ def test_send_receive_cancel_workflow(client):
     assert set(row["_actions"]) == {"receive", "cancel"}
     assert _error(client.put(f"{BASE}/orders/{order['id']}", json={"notes": "x"}), 409) == row["_locked"]
     assert _error(_act(client, order, "send"), 409) == "Cette action n'est pas possible dans l'état actuel de la fiche."
-    assert _error(client.delete(f"{BASE}/orders/{order['id']}"), 409) == row["_locked"]
+    assert row["_deletable"] is False
+    assert _error(client.delete(f"{BASE}/orders/{order['id']}"), 409) == "Seule une commande en brouillon ou annulée peut être supprimée."
 
     received = _act(client, order, "receive").json()
     assert received["message"] == f"Commande {order['code']} réceptionnée."   # sans article : aucun mouvement de stock
@@ -309,9 +310,9 @@ def test_send_receive_cancel_workflow(client):
     for action in ("send", "receive", "cancel"):
         assert _act(client, draft, action).status_code == 409, action
     assert client.put(f"{BASE}/orders/{draft['id']}", json={"notes": "x"}).status_code == 409
-    # Le moteur refuse de supprimer une fiche verrouillée avant de consulter before_delete : une commande annulée
-    # reste dans l'historique (demande d'évolution du socle transmise avec le module).
-    assert client.delete(f"{BASE}/orders/{draft['id']}").status_code == 409
+    # verrouillée mais supprimable : la règle du module (before_delete) décide de la suppression
+    assert cancelled["row"]["_deletable"] is True
+    assert client.delete(f"{BASE}/orders/{draft['id']}").status_code == 204
 
     # commande envoyée puis annulée : elle ne se réceptionne plus
     late = _order(client, supplier, [{"description": "Carton", "quantity": 1, "unit_price": 1}])

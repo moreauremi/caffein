@@ -138,7 +138,11 @@ l'utilisateur sur le module, pour une règle plus fine (annuler une absence déj
 - `prepare(values, existing)` : ajuste les valeurs avant contrôle (signe d'une quantité, nom complet…).
 - `validate(values, existing)` : contrôles métier ; `ValueError("Champ : message.")` → erreur 400 affichée.
 - `locked(row)` : message si la fiche ne se modifie plus (commande confirmée…) ; les actions restent possibles.
-- `before_delete(row)`, `after_save(row_id, created)`, `delete_level` (gestion par défaut), `readonly` (vue SQL).
+  Sans `before_delete`, une fiche verrouillée ne se supprime pas non plus.
+- `before_delete(row)` : décide seul de la suppression (`Conflict("message")` pour la refuser) ; une commande
+  annulée, verrouillée, peut ainsi rester supprimable. La fiche renvoyée porte `_deletable` (droits et règle) :
+  l'interface n'affiche « Supprimer » que si la suppression est possible.
+- `after_save(row_id, created)`, `delete_level` (gestion par défaut), `readonly` (vue SQL).
 
 **Références** : une fiche utilisée ailleurs ne se supprime pas (409, « utilisée ailleurs (commandes clients : 3) »).
 Les champs `ref` de toutes les entités sont trouvés tout seuls, même dans un module désactivé ; une colonne hors

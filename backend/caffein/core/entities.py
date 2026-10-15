@@ -434,7 +434,21 @@ def get_row(entity: Entity, row_id: int, level: int, user: dict | None = None) -
     _strip_hidden([row], entity, fields)
     row["_locked"] = entity.locked(row) if entity.locked else None
     row["_actions"] = [a.key for a in entity.actions if level >= a.level and _when(a, row)]
+    row["_deletable"] = not entity.readonly and level >= entity.delete_level and _delete_refusal(entity, row) is None
     return row
+
+
+def _delete_refusal(entity: Entity, row: dict) -> str | None:
+    """Pourquoi la fiche ne se supprime pas, ou None. La règle du module (`before_delete`) décide seule quand elle
+    existe : une commande annulée, verrouillée, se supprime si le module le permet. Sans règle, une fiche
+    verrouillée ne se supprime pas."""
+    if entity.before_delete:
+        try:
+            entity.before_delete(row)
+        except (Conflict, ValueError) as exc:
+            return str(exc)
+        return None
+    return entity.locked(row) if entity.locked else None
 
 
 def _when(action: Action, row: dict) -> bool:
@@ -733,10 +747,10 @@ def delete_row(entity: Entity, row_id: int) -> None:
     if entity.readonly:
         raise Conflict("Ces données sont calculées : elles ne se suppriment pas.")
     row = get_row(entity, row_id, MANAGE)
-    if entity.locked and (reason := entity.locked(row)):
-        raise Conflict(reason)
     if entity.before_delete:
         entity.before_delete(row)
+    elif entity.locked and (reason := entity.locked(row)):
+        raise Conflict(reason)
     used = usages(entity, row_id)
     if used:
         detail = ", ".join(f"{label[0].lower()} : {n}" for label, n in used)

@@ -260,6 +260,12 @@ def test_order_lifecycle(client):
     assert second["code"] == f"CC-{today().year}-{first + 1:04d}"
     assert client.post(f"/api/data/sales/orders/{second['id']}/actions/confirm").status_code == 400  # sans ligne
     assert client.delete(f"/api/data/sales/orders/{second['id']}").status_code == 204
+    # une commande annulée est verrouillée, mais la règle du module permet de la supprimer
+    third = client.post("/api/data/sales/orders", json={"client_id": _client_id()}).json()
+    cancelled = client.post(f"/api/data/sales/orders/{third['id']}/actions/cancel").json()["row"]
+    assert cancelled["_locked"] and cancelled["_deletable"] is True
+    assert client.get(f"/api/data/sales/orders/{order['id']}").json()["_deletable"] is False   # facturée
+    assert client.delete(f"/api/data/sales/orders/{third['id']}").status_code == 204
 
 
 def test_entity_validation(client):
