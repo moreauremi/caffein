@@ -523,3 +523,13 @@ def test_invoice_lines_take_catalogue_articles(client, restore_modules):
     inv = client.post("/api/invoices", json={"kind": "quote", "items": [
         {"description": "x", "quantity": 1, "unit_price": 1, "article_id": kit}]}).json()
     assert inv["items"][0]["article_id"] is None and inv["items"][0]["article_label"] is None
+
+
+def test_out_of_range_numbers_are_refused(client):
+    huge = 2**63
+    assert client.get(f"/api/data/sales/orders/{huge * 10}").status_code == 400
+    assert client.get(f"/api/invoices/{huge * 10}").status_code == 400
+    for value in (huge, -huge - 1, 1e308):
+        res = client.post("/api/data/sales/orders", json={"client_id": value})
+        assert res.status_code == 400 and "hors limites" in res.json()["detail"]
+    assert client.get("/api/data/sales/orders", params={"f_client_id": str(huge)}).status_code == 400

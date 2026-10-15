@@ -29,6 +29,7 @@ _IDENT = re.compile(r"^[a-z][a-z0-9_]*$")
 TYPES = ("text", "longtext", "email", "phone", "int", "decimal", "money", "percent", "date", "bool", "enum", "ref", "code")
 TEXT_TYPES = ("text", "longtext", "email", "phone", "code")
 MAX_PAGE = 200
+SQLITE_INT = 2**63  # entiers SQLite : de -2^63 à 2^63 - 1
 
 
 @dataclass
@@ -237,7 +238,10 @@ def _bools(rows: list[dict], fields: list[Field]) -> None:
 
 def _coerce_filter(fld: Field, value: str) -> Any:
     if fld.type in ("int", "ref"):
-        return int(value)
+        number = int(value)
+        if not -SQLITE_INT <= number < SQLITE_INT:
+            raise ValueError("Filtre hors limites.")
+        return number
     if fld.type == "bool":
         return 1 if value in ("1", "true", "oui", "yes") else 0
     if fld.type == "enum":
@@ -407,6 +411,8 @@ def _clean_value(fld: Field, value: Any, label: str) -> Any:
             number = None
         if number is None:
             raise ValueError(f"{label} : nombre entier attendu.")
+        if not -SQLITE_INT <= number < SQLITE_INT:
+            raise ValueError(f"{label} : nombre hors limites.")
         if t == "int":
             _bounds(fld, number, label)
         return number

@@ -105,6 +105,12 @@ async def _bad_request(_req: Request, exc: ValueError):
     return JSONResponse({"detail": str(exc)}, status_code=400)
 
 
+@app.exception_handler(OverflowError)
+async def _overflow(_req: Request, _exc: OverflowError):
+    # identifiant ou nombre hors de la plage des entiers SQLite (2^63)
+    return JSONResponse({"detail": "Nombre hors limites."}, status_code=400)
+
+
 @app.exception_handler(auth.AuthError)
 async def _auth_error(_req: Request, exc: auth.AuthError):
     return JSONResponse({"detail": str(exc)}, status_code=401)
