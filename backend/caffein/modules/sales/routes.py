@@ -11,7 +11,7 @@ from fastapi import Body, Depends, Query, Response
 from ... import ai, services
 from ...core.deps import current_user, module_router
 from ...jobs import run_job
-from ...utils import today
+from ...utils import cents, today
 
 router = module_router("sales")
 
@@ -80,7 +80,7 @@ def invoice_assistant(payload: dict = Body(...)) -> dict:
 
     items = parsed["items"]
     if parsed.get("amounts_include_vat") and not profile["vat_exempt"]:
-        items = [{**it, "unit_price": round(float(it["unit_price"]) / (1 + profile["default_vat_rate"]), 2)} for it in items]
+        items = [{**it, "unit_price": cents(float(it["unit_price"]) / (1 + profile["default_vat_rate"]))} for it in items]
     data: dict[str, Any] = {
         "kind": parsed["kind"], "client_id": client["id"] if client else None, "title": parsed.get("title", ""),
         "items": items, "delivery_date": parsed.get("delivery_date"), "notes": parsed.get("notes", ""), "source_text": text,

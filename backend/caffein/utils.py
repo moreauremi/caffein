@@ -6,6 +6,7 @@ from __future__ import annotations
 import re
 import unicodedata
 from datetime import date, datetime, timedelta
+from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 
 from . import config
@@ -103,6 +104,12 @@ def unique_path(path: Path) -> Path:
         if not candidate.exists():
             return candidate
     raise RuntimeError(f"Impossible de trouver un nom libre pour {path}")
+
+
+def cents(value: float | int) -> float:
+    """Montant arrondi au centime, la moitié vers le haut (arrondi commercial des factures) : 0,125 → 0,13.
+    round() arrondit les demis au pair (0,125 → 0,12). Le nombre est lu tel qu'il s'écrit (2,675 → 2,68)."""
+    return float(Decimal(repr(float(value))).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
 
 
 def to_float(value: object) -> float | None:

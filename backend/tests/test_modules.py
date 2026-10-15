@@ -279,7 +279,7 @@ def test_lines_are_updated_by_id(client, restore_modules):
     first, second = order["lines"]
     # mise à jour partielle d'une ligne : la désignation et l'article restent
     lines = client.put(url, json={"lines": [{"id": first["id"], "quantity": 3}, {"id": second["id"]}]}).json()["lines"]
-    assert [(l["id"], l["description"], l["quantity"], l["article_id"]) for l in lines] == [
+    assert [(line["id"], line["description"], line["quantity"], line["article_id"]) for line in lines] == [
         (first["id"], "Avec article", 3, article["id"]), (second["id"], "Sans article", 1, None)]
     # Données techniques désactivées : l'article n'est plus visible, et un enregistrement ne doit pas l'effacer
     from tests.modules.helpers import disable_module
@@ -296,8 +296,8 @@ def test_lines_are_updated_by_id(client, restore_modules):
     stranger = other["lines"][0]["id"]
     lines = client.put(url, json={"lines": [{"id": first["id"]}, {"id": stranger, "description": "Copie", "quantity": 1},
                                             {"description": "Nouvelle", "quantity": 4, "unit_price": 2}]}).json()["lines"]
-    assert [l["description"] for l in lines] == ["Avec article", "Copie", "Nouvelle"]
-    assert lines[0]["id"] == first["id"] and stranger not in {l["id"] for l in lines}
+    assert [line["description"] for line in lines] == ["Avec article", "Copie", "Nouvelle"]
+    assert lines[0]["id"] == first["id"] and stranger not in {line["id"] for line in lines}
     assert client.get(f"/api/data/sales/orders/{other['id']}").json()["lines"][0]["description"] == "Autre commande"
     assert db.fetch_one("SELECT COUNT(*) AS n FROM sales_order_lines WHERE id = ?", (second["id"],))["n"] == 0
     assert client.put(url, json={"lines": [{"id": True, "description": "x", "quantity": 1}]}).json()["lines"][0]["id"] != 1

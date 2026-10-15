@@ -11,7 +11,7 @@ from pathlib import Path
 
 from . import config, crypto, db, fiscal
 from .core.errors import Conflict, NotFound  # noqa: F401 (services.NotFound et services.Conflict restent valables)
-from .utils import add_months, month_end, parse_date, slugify_name, today
+from .utils import add_months, cents, month_end, parse_date, slugify_name, today
 
 # ═════════════════════════════════════════════════════════════════════════
 # Profil
@@ -125,13 +125,13 @@ INVOICE_STATUSES = {"invoice": {"draft", "pending", "paid", "cancelled"},
 
 
 def compute_totals(items: list[dict], vat_exempt: bool, vat_rate: float) -> tuple[float, float, float]:
-    subtotal = round(sum(line_amount(i) for i in items), 2)
-    vat = 0.0 if vat_exempt else round(subtotal * float(vat_rate or 0), 2)
-    return subtotal, vat, round(subtotal + vat, 2)
+    subtotal = cents(sum(line_amount(i) for i in items))
+    vat = 0.0 if vat_exempt else cents(subtotal * float(vat_rate or 0))
+    return subtotal, vat, cents(subtotal + vat)
 
 
 def line_amount(item: dict) -> float:
-    return round(float(item.get("quantity") or 0) * float(item.get("unit_price") or 0), 2)
+    return cents(float(item.get("quantity") or 0) * float(item.get("unit_price") or 0))
 
 
 def _number(value: object, label: str) -> float:
@@ -164,7 +164,7 @@ def _clean_items(items: object) -> list[dict]:
         line = {
             "description": desc[:300],
             "quantity": round(_number(item.get("quantity"), "Quantité"), 3),
-            "unit_price": round(_number(item.get("unit_price"), "Prix unitaire"), 2),
+            "unit_price": cents(_number(item.get("unit_price"), "Prix unitaire")),
             "article_id": None,
         }
         article = item.get("article_id")
@@ -492,10 +492,10 @@ def invoice_summary() -> dict:
     paid_month = [i for i in invoices if i["status"] == "paid" and (parse_date(i["paid_at"]) or date.min) >= month_start]
     quotes = [q for q in list_invoices("quote") if q["status"] == "pending"]
     return {
-        "to_collect": round(sum(i["total"] for i in pending), 2), "to_collect_count": len(pending),
-        "overdue_total": round(sum(i["total"] for i in overdue), 2), "overdue_count": len(overdue),
-        "paid_month": round(sum(i["total"] for i in paid_month), 2), "paid_month_count": len(paid_month),
-        "quotes_pending": round(sum(q["total"] for q in quotes), 2), "quotes_pending_count": len(quotes),
+        "to_collect": cents(sum(i["total"] for i in pending)), "to_collect_count": len(pending),
+        "overdue_total": cents(sum(i["total"] for i in overdue)), "overdue_count": len(overdue),
+        "paid_month": cents(sum(i["total"] for i in paid_month)), "paid_month_count": len(paid_month),
+        "quotes_pending": cents(sum(q["total"] for q in quotes)), "quotes_pending_count": len(quotes),
         "drafts": sum(1 for i in invoices if i["status"] == "draft"),
     }
 
@@ -582,8 +582,8 @@ def time_saved_minutes() -> int:
 
 
 def _tva_totals(docs: list[dict]) -> tuple[float, float]:
-    collected = round(sum(d["tva"] for d in docs if d["tva_type"] == "collected"), 2)
-    deductible = round(sum(d["tva"] for d in docs if d["tva_type"] == "deductible"), 2)
+    collected = cents(sum(d["tva"] for d in docs if d["tva_type"] == "collected"))
+    deductible = cents(sum(d["tva"] for d in docs if d["tva_type"] == "deductible"))
     return collected, deductible
 
 
@@ -607,10 +607,10 @@ def tva_dashboard(kind: str) -> dict:
         "metrics": {
             "documents": len([d for d in docs if d["source"] != "invoice"]),
             "time_saved_min": len([d for d in docs if d["source"] != "invoice"]) * config.MINUTES_PER_DOCUMENT,
-            "collected": collected, "deductible": deductible, "balance": round(collected - deductible, 2),
+            "collected": collected, "deductible": deductible, "balance": cents(collected - deductible),
             "ratio": round(deductible / collected, 4) if collected else (1.0 if deductible else 0.0),
-            "ht_sales": round(sum(d["ht"] for d in docs if d["tva_type"] == "collected"), 2),
-            "ht_purchases": round(sum(d["ht"] for d in docs if d["tva_type"] == "deductible"), 2),
+            "ht_sales": cents(sum(d["ht"] for d in docs if d["tva_type"] == "collected")),
+            "ht_purchases": cents(sum(d["ht"] for d in docs if d["tva_type"] == "deductible")),
         },
         "deadline": {"date": deadline.isoformat(), "days_left": (deadline - ref).days},
         "chart": chart,
@@ -632,7 +632,7 @@ def home_dashboard() -> dict:
     return {
         "stats": {
             "documents": db.fetch_one("SELECT COUNT(*) AS n FROM documents WHERE source != 'invoice'")["n"],
-            "tva_collected": collected, "balance": round(collected - deductible, 2),
+            "tva_collected": collected, "balance": cents(collected - deductible),
             "time_saved_min": time_saved_minutes(),
             **{k: summary[k] for k in ("to_collect", "to_collect_count", "overdue_total", "overdue_count", "paid_month")},
         },
@@ -667,19 +667,19 @@ def urssaf_dashboard(year: int | None = None) -> dict:
     for row in paid:
         d = parse_date(row["paid_at"])
         monthly[d.month - 1] += row["subtotal"]
-    monthly = [round(v, 2) for v in monthly]
+    monthly = [cents(v) for v in monthly]
 
     declared = {r["period_key"]: r["declared_at"] for r in db.fetch_all("SELECT * FROM declarations")}
     tracked_from = parse_date(profile.get("created_at"))
     periods = []
     for p in fiscal.declaration_periods(year, profile["declaration_frequency"]):
-        ca = round(sum(monthly[m - 1] for m in range(p.start.month, p.end.month + 1)), 2)
+        ca = cents(sum(monthly[m - 1] for m in range(p.start.month, p.end.month + 1)))
         deadline = fiscal.declaration_deadline(p)
         status = fiscal.declaration_status(p, deadline, p.key in declared, ref, tracked_from)
-        periods.append({**p.as_dict(), "ca": ca, "contributions": round(ca * rate, 2), "deadline": deadline.isoformat(),
+        periods.append({**p.as_dict(), "ca": ca, "contributions": cents(ca * rate), "deadline": deadline.isoformat(),
                         "days_left": (deadline - ref).days, "status": status, "declared_at": declared.get(p.key)})
 
-    ca_year = round(sum(monthly), 2)
+    ca_year = cents(sum(monthly))
     pending = db.fetch_one("SELECT COALESCE(SUM(subtotal), 0) AS s FROM invoices WHERE kind = 'invoice' AND status = 'pending'")["s"]
     open_periods = sorted((p for p in periods if p["status"] in ("late", "to_declare", "in_progress")), key=lambda p: p["deadline"])
     return {
@@ -687,8 +687,8 @@ def urssaf_dashboard(year: int | None = None) -> dict:
         "activity": {"key": profile["activity"], **info, "total_rate": round(rate, 4),
                      "versement_liberatoire": profile["versement_liberatoire"]},
         "frequency": profile["declaration_frequency"],
-        "ca_year": ca_year, "contributions_year": round(ca_year * rate, 2), "net_year": round(ca_year * (1 - rate), 2),
-        "pending_ht": round(pending, 2),
+        "ca_year": ca_year, "contributions_year": cents(ca_year * rate), "net_year": cents(ca_year * (1 - rate)),
+        "pending_ht": cents(pending),
         "monthly": [{"month": fiscal.month_label_short(date(year, i + 1, 1)), "ca": v} for i, v in enumerate(monthly)],
         "periods": periods,
         "next": open_periods[0] if open_periods else None,
@@ -719,7 +719,7 @@ def upcoming_deadlines(ref: date) -> list[dict]:
         docs = list_documents(month.start, month.end)
         c, d = _tva_totals(docs)
         items.append({"type": "tva", "label": f"TVA — {month.label}", "date": deadline.isoformat(),
-                      "days_left": (deadline - ref).days, "amount": round(c - d, 2), "path": "/comptabilite/tva"})
+                      "days_left": (deadline - ref).days, "amount": cents(c - d), "path": "/comptabilite/tva"})
     urssaf = urssaf_dashboard(ref.year)
     nxt = next((p for p in urssaf["periods"] if p["status"] in ("late", "to_declare")), None)
     if nxt is None and urssaf["next"]:

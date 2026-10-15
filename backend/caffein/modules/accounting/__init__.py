@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from ... import db, fiscal, services
 from ...core.modules import Kpi, Module, Page, Shortcut
-from ...utils import today
+from ...utils import cents, today
 from . import routes
 
 
@@ -17,7 +17,7 @@ def _vat_balance() -> dict:
             collected += doc["tva"] or 0
         else:
             deductible += doc["tva"] or 0
-    return {"value": round(collected - deductible, 2)}
+    return {"value": cents(collected - deductible)}
 
 
 def _documents() -> dict:

@@ -8,7 +8,7 @@ from ...core import events
 from ...core.entities import Action, Child, Entity, Field
 from ...core.errors import Conflict
 from ...core.modules import WRITE
-from ...utils import today
+from ...utils import cents, today
 
 MIGRATIONS = [
     (1, """
@@ -63,7 +63,7 @@ def _client_totals(rows: list[dict]) -> None:
     for row in rows:
         s = stats.get(row.get("id"), {})
         row["invoice_count"] = s.get("invoice_count", 0)
-        row["total_paid"] = round(s.get("total_paid", 0) or 0, 2)
+        row["total_paid"] = cents(s.get("total_paid", 0) or 0)
 
 
 def _client_before_delete(row: dict) -> None:
@@ -127,9 +127,9 @@ def _order_totals(rows: list[dict]) -> None:
         if "lines" in row:
             for line in row["lines"]:
                 line["amount"] = services.line_amount(line)
-            row["total_ht"] = round(sum(line["amount"] for line in row["lines"]), 2)
+            row["total_ht"] = cents(sum(line["amount"] for line in row["lines"]))
         else:
-            row["total_ht"] = round(sums.get(row.get("id"), 0) or 0, 2)
+            row["total_ht"] = cents(sums.get(row.get("id"), 0) or 0)
         row["invoice_number"] = invoices.get(row.get("invoice_id"), "")
 
 

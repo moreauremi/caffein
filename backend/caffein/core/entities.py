@@ -21,7 +21,7 @@ from datetime import date
 from typing import Any
 
 from .. import db
-from ..utils import parse_date, today
+from ..utils import cents, parse_date, today
 from .errors import Conflict, Forbidden, NotFound
 from .modules import MANAGE, READ, WRITE, Label
 
@@ -356,7 +356,7 @@ def board(entity: Entity, level: int, *, q: str | None = None, filters: dict[str
         count = stat.get("n", 0)
         rows = _rows(entity, fields, [*where, f"t.{column.name} = ?"], [*params, choice[0]], order, size, 0) if count else []
         columns.append({"value": choice[0], "label": choice[1], "tone": choice[2] if len(choice) > 2 else None,
-                        "count": count, "amount": round(stat.get("amount") or 0, 2) if amount else None, "rows": rows})
+                        "count": count, "amount": cents(stat.get("amount") or 0) if amount else None, "rows": rows})
     return {"field": column.name, "amount_field": amount.name if amount else None,
             "amount_label": amount.label if amount else None, "columns": columns}
 
@@ -511,7 +511,7 @@ def _clean_value(fld: Field, value: Any, label: str) -> Any:
         _bounds(fld, number, label)
         if fld.choices and number not in {float(c[0]) for c in fld.choices}:
             raise ValueError(f"{label} : valeur non proposée.")
-        return round(number, 2) if t == "money" else round(number, 6)
+        return cents(number) if t == "money" else round(number, 6)
     if t == "date":
         d = parse_date(value) if isinstance(value, (str, date)) else None
         if d is None:

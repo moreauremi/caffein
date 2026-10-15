@@ -106,7 +106,7 @@ aperçu des calculs, choix des références, export tableur `…/export`) et les
 | Type | Valeur | Remarques |
 |---|---|---|
 | `text`, `longtext`, `email`, `phone` | texte | `maxlength` (200 par défaut, 5000 pour `longtext`) |
-| `int`, `decimal`, `money`, `percent` | nombre | `min`, `max` ; « 1 250,50 » accepté ; `money` arrondi à 2 décimales ; `percent` : 20 = 20 % |
+| `int`, `decimal`, `money`, `percent` | nombre | `min`, `max` ; « 1 250,50 » accepté ; `money` arrondi au centime (arrondi commercial, voir `utils.cents`) ; `percent` : 20 = 20 % |
 | `date` | `AAAA-MM-JJ` | `default=_today` (fonction) pour la date du jour |
 | `bool` | oui / non | |
 | `enum` | une valeur de `choices` | `choices=(("draft", ("Brouillon", "Draft")), ("done", ("Terminé", "Done"), "good"))` : le 3e élément (facultatif) colore le badge : `good`, `warn`, `bad`, `info`, `accent`, `outline` |
@@ -193,6 +193,9 @@ abonné annule l'action : émettre **avant** d'enregistrer le changement d'état
 - **RH** (`modules/hr/services.py`) : `employee(id)`, `is_absent(employee_id, day=None)`,
   `absent_employee_ids(day=None)`, `leave_balance(employee_id, year=None)`, `working_days(début, fin)`,
   `is_working_day(jour)`, `public_holidays(année)` (jours fériés français, Pâques comprise).
+
+Montants calculés : `caffein.utils.cents(x)` arrondit au centime, la moitié vers le haut (0,125 → 0,13), comme
+une facture ; `round()` de Python arrondit les demis au pair et ne convient pas.
 
 Appeler un service d'un autre module seulement s'il est actif (`core.modules.is_enabled("stock")`), ou s'il est
 déclaré dans `depends`.

@@ -17,7 +17,7 @@ from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import mm
 from reportlab.platypus import KeepTogether, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
-from .utils import fmt_date, fmt_money
+from .utils import cents, fmt_date, fmt_money
 
 INDIGO = colors.HexColor("#4f46e5")
 INK = colors.HexColor("#111827")
@@ -138,7 +138,7 @@ def render_invoice_pdf(invoice: dict, client: dict | None, profile: dict, draft:
     for item in invoice.get("items") or []:
         qty = float(item.get("quantity") or 0)
         unit = float(item.get("unit_price") or 0)
-        line_total = round(qty * unit, 2)
+        line_total = cents(qty * unit)
         subtotal += line_total
         qty_txt = f"{qty:g}".replace(".", ",")
         rows.append([_p(_e(item.get("description")), "td"), _p(qty_txt, "td_r"),
@@ -154,9 +154,9 @@ def render_invoice_pdf(invoice: dict, client: dict | None, profile: dict, draft:
     story += [items_table, Spacer(1, 5 * mm)]
 
     # ── Totaux ──
-    subtotal = round(subtotal, 2)
-    vat_amount = 0.0 if vat_exempt else round(subtotal * vat_rate, 2)
-    total = round(subtotal + vat_amount, 2)
+    subtotal = cents(subtotal)
+    vat_amount = 0.0 if vat_exempt else cents(subtotal * vat_rate)
+    total = cents(subtotal + vat_amount)
     vat_label = "TVA" if vat_exempt else f"TVA ({vat_rate * 100:g} %)".replace(".", ",")
     totals = Table(
         [[_p("Sous-total HT", "tot_l"), _p(fmt_money(subtotal), "tot_r")],

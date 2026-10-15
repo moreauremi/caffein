@@ -17,7 +17,7 @@ from datetime import date, timedelta
 from pathlib import Path
 
 from . import config
-from .utils import add_months, parse_date, to_float
+from .utils import add_months, cents, parse_date, to_float
 
 log = logging.getLogger("caffein.ai")
 
@@ -199,11 +199,11 @@ def _document_content(path: Path, text: str) -> list[dict] | None:
 def normalize_document(data: dict) -> dict:
     ht, tva, ttc = to_float(data.get("ht")), to_float(data.get("tva")), to_float(data.get("ttc"))
     if ttc is not None and ht is not None and tva is None:
-        tva = round(ttc - ht, 2)
+        tva = cents(ttc - ht)
     elif ht is not None and tva is not None and ttc is None:
-        ttc = round(ht + tva, 2)
+        ttc = cents(ht + tva)
     elif ttc is not None and tva is not None and ht is None:
-        ht = round(ttc - tva, 2)
+        ht = cents(ttc - tva)
     elif ttc is not None and ht is None and tva is None:
         ht, tva = ttc, 0.0
     elif ht is not None and ttc is None and tva is None:
@@ -217,9 +217,9 @@ def normalize_document(data: dict) -> dict:
     return {
         "fournisseur": (data.get("fournisseur") or "").strip().upper(),
         "date": d.isoformat() if d else None,
-        "ht": round(ht or 0.0, 2),
-        "tva": round(tva or 0.0, 2),
-        "ttc": round(ttc or 0.0, 2),
+        "ht": cents(ht or 0.0),
+        "tva": cents(tva or 0.0),
+        "ttc": cents(ttc or 0.0),
         "categorie": categorie,
         "resume": (data.get("resume") or "")[:80],
         "echeance": echeance.isoformat() if echeance else None,

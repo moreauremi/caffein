@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from ... import db
 from ...core.modules import Kpi, Module, Page, Shortcut
-from ...utils import today
+from ...utils import cents, today
 from .demo import seed_demo
 from .entities import ENTITIES, MIGRATIONS
 from .services import EVENTS
@@ -22,7 +22,7 @@ def _stock_value() -> dict:
     memo: dict = {}
     total = sum(max(r["quantity"], 0) * (cost_price(r["article_id"], memo) or 0)
                 for r in db.fetch_all("SELECT article_id, quantity FROM stock_status WHERE quantity > 0"))
-    return {"value": round(total, 2)}
+    return {"value": cents(total)}
 
 
 def _movements_month() -> dict:

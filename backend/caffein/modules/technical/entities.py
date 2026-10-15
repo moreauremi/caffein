@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from ... import db
 from ...core.entities import Child, Entity, Field
+from ...utils import cents
 from .costing import bom_line_need, cost_price
 
 MIGRATIONS = [
@@ -144,7 +145,7 @@ def _article_costs(rows: list[dict]) -> None:
             cost = cost_price(row["id"], memo)
         else:
             cost = row.get("purchase_price")
-        row["cost_price"] = round(cost, 2) if cost is not None else None
+        row["cost_price"] = cents(cost) if cost is not None else None
         sale = row.get("sale_price")
         row["margin_rate"] = round((sale - cost) / sale * 100, 1) if sale and cost is not None and sale > 0 else None
 
@@ -214,11 +215,11 @@ def _bom_costs(rows: list[dict]) -> None:
         for line in lines:
             # composant acheté : son coût d'achat ; fabriqué : son propre coût de revient, de proche en proche
             price = cost_price(line.get("article_id"), memo)
-            line["line_cost"] = round(bom_line_need(line) * price, 2) if price is not None else None
+            line["line_cost"] = cents(bom_line_need(line) * price) if price is not None else None
             line["unit"] = units.get(line.get("article_id"))
             total += line["line_cost"] or 0
         quantity = row.get("quantity") or 1
-        row["unit_cost"] = round(total / quantity, 2) if quantity > 0 else None
+        row["unit_cost"] = cents(total / quantity) if quantity > 0 else None
         row["components"] = len(lines)
 
 
@@ -317,13 +318,13 @@ def _routing_totals(rows: list[dict]) -> None:
         for step in steps:
             rate = centers.get(step.get("workcenter_id")) or 0
             run = step.get("run_minutes") or 0
-            step["step_cost"] = round(run / 60 * rate, 2)
+            step["step_cost"] = cents(run / 60 * rate)
             minutes += run
             setup += step.get("setup_minutes") or 0
             cost += step["step_cost"]
         row["run_minutes_total"] = round(minutes, 2)
         row["setup_minutes_total"] = round(setup, 2)
-        row["unit_cost"] = round(cost, 2)
+        row["unit_cost"] = cents(cost)
 
 
 ROUTING_STEP_FIELDS = [

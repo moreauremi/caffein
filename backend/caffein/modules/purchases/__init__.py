@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from ... import db
 from ...core.modules import Kpi, Module, Page, Shortcut
-from ...utils import add_months, today
+from ...utils import add_months, cents, today
 from .demo import seed_demo
 from .entities import ENTITIES, MIGRATIONS
 from .figures import is_late, placed_between
@@ -28,7 +28,7 @@ def _ordered_month() -> dict:
     """Montant HT des commandes envoyées ou reçues datées de ce mois-ci, et leur nombre."""
     start = today().replace(day=1)
     figures = placed_between(start, add_months(start, 1)).values()
-    return {"value": round(sum(f["total_ht"] for f in figures), 2), "count": sum(f["count"] for f in figures)}
+    return {"value": cents(sum(f["total_ht"] for f in figures)), "count": sum(f["count"] for f in figures)}
 
 
 MODULE = Module(

@@ -17,7 +17,7 @@ from ...core.entities import Action, Child, Entity, Field
 from ...core.errors import Conflict, Forbidden
 from ...core.modules import MANAGE
 from ...core.permissions import level_for
-from ...utils import fmt_date, fmt_money, parse_date, today
+from ...utils import cents, fmt_date, fmt_money, parse_date, today
 from .workdays import working_days
 
 MIGRATIONS = [
@@ -401,8 +401,8 @@ def _expense_totals(rows: list[dict]) -> None:
             lines_by_expense.setdefault(line["expense_id"], []).append(line)
     for row in rows:
         lines = (row.get("lines") or []) if "lines" in row else lines_by_expense.get(row.get("id"), [])
-        row["total"] = round(sum(line.get("amount") or 0 for line in lines), 2)
-        row["total_vat"] = round(sum(line.get("vat") or 0 for line in lines), 2)
+        row["total"] = cents(sum(line.get("amount") or 0 for line in lines))
+        row["total_vat"] = cents(sum(line.get("vat") or 0 for line in lines))
 
 
 def _expense_validate(values: dict, existing: dict | None) -> None:
@@ -463,7 +463,7 @@ def _pay(row: dict, payload: dict, user: dict) -> str:
         employee = db.fetch_one("SELECT full_name FROM hr_employees WHERE id = ?", (row["employee_id"],))
         services.add_document({
             "date": paid_on, "fournisseur": f"NOTE DE FRAIS {((employee or {}).get('full_name') or '').upper()}".strip(),
-            "ht": round(total - vat, 2), "tva": vat, "ttc": total, "categorie": "Frais de déplacement",
+            "ht": cents(total - vat), "tva": vat, "ttc": total, "categorie": "Frais de déplacement",
             "resume": (row.get("title") or "")[:50], "tva_type": "deductible", "source": "expense", "extracted_by": "caffein",
         })
         message += f" Justificatif ajouté à la comptabilité (TVA déductible : {fmt_money(vat)})."

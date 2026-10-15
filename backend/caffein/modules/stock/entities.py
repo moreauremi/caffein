@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from ... import db
 from ...core.entities import Entity, Field
-from ...utils import today
+from ...utils import cents, today
 
 MIGRATIONS = [
     (1, """
@@ -172,7 +172,7 @@ def _status_values(rows: list[dict]) -> None:
     for row in rows:
         quantity = row.get("quantity") or 0
         cost = cost_price(row.get("article_id"), memo)
-        row["value"] = round(max(quantity, 0) * cost, 2) if cost is not None else None
+        row["value"] = cents(max(quantity, 0) * cost) if cost is not None else None
         minimum = row.get("min_stock")
         if minimum is not None and quantity < minimum:
             row["to_order"] = round(max(row.get("reorder_qty") or 0, minimum - quantity), 3)

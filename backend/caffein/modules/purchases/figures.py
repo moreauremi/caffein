@@ -14,7 +14,7 @@ from __future__ import annotations
 from datetime import date
 
 from ... import db
-from ...utils import today
+from ...utils import cents, today
 
 PLACED = ("sent", "received")  # commandes passées au fournisseur : elles comptent dans les achats
 
@@ -29,7 +29,7 @@ def _number(line: dict, name: str) -> float:
 
 def line_amount(line: dict) -> float:
     """Montant HT d'une ligne, arrondi au centime."""
-    return round(_number(line, "quantity") * _number(line, "unit_price"), 2)
+    return cents(_number(line, "quantity") * _number(line, "unit_price"))
 
 
 def totals(lines: list[dict], annotate: bool = False) -> dict:
@@ -40,9 +40,9 @@ def totals(lines: list[dict], annotate: bool = False) -> dict:
         if annotate:
             line["amount"] = amount
         ht += amount
-        vat += round(amount * _number(line, "vat_rate") / 100, 2)
-    ht, vat = round(ht, 2), round(vat, 2)
-    return {"total_ht": ht, "total_vat": vat, "total_ttc": round(ht + vat, 2)}
+        vat += cents(amount * _number(line, "vat_rate") / 100)
+    ht, vat = cents(ht), cents(vat)
+    return {"total_ht": ht, "total_vat": vat, "total_ttc": cents(ht + vat)}
 
 
 def is_late(order: dict) -> bool:
@@ -85,5 +85,5 @@ def placed_between(start: date, end: date, supplier_ids: list[int] | None = None
         figures = out.setdefault(line["supplier_id"], {"count": 0, "total_ht": 0.0})
         figures["total_ht"] += line_amount(line)
     for figures in out.values():
-        figures["total_ht"] = round(figures["total_ht"], 2)
+        figures["total_ht"] = cents(figures["total_ht"])
     return out
