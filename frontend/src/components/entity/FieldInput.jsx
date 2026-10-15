@@ -10,6 +10,15 @@ export default function FieldInput({ field, value, label, onChange, entityKey, d
   const name = pick(field.label)
   const cls = compact ? 'sm' : ''
   const common = { id, disabled, 'aria-label': compact ? name : undefined }
+  // Nombre à choisir dans une liste (taux de TVA…) : une liste déroulante plutôt qu'une saisie libre
+  if (field.choices?.length && ['int', 'decimal', 'money', 'percent'].includes(field.type)) {
+    return (
+      <select {...common} className={`select ${cls}`} value={value ?? ''} onChange={(e) => onChange(e.target.value === '' ? null : e.target.value)}>
+        {!field.required || value == null ? <option value="">—</option> : null}
+        {field.choices.map((c) => <option key={String(c.value)} value={c.value}>{pick(c.label)}</option>)}
+      </select>
+    )
+  }
   switch (field.type) {
     case 'longtext':
       return <textarea {...common} className="textarea" value={value ?? ''} maxLength={field.maxlength}

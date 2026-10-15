@@ -701,6 +701,7 @@ const DICT = {
 
   // ── Accueil (modules) ─────────────────────────────────────────────
   'home.modules_title': ['Vos modules', 'Your modules'],
+  'home.to_handle': ['À traiter', 'Needs attention'],
   'home.shortcuts': ['Raccourcis', 'Shortcuts'],
   'home.no_kpi': ['Aucun chiffre clé : activez des modules dans Paramètres → Modules.', 'No key figures: enable modules in Settings → Modules.'],
 

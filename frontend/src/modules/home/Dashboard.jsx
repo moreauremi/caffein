@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowRight, Bot, CalendarClock, Landmark, Newspaper, Percent, ScanLine } from 'lucide-react'
+import { AlertTriangle, ArrowRight, Blocks, Bot, CalendarClock, Landmark, Newspaper, Percent, ScanLine } from 'lucide-react'
 import Greeting from '../../components/Greeting'
 import { JOB_ICONS } from '../../components/jobIcons'
 import KpiCard from '../../components/KpiCard'
@@ -12,6 +12,8 @@ import { useAuth } from '../../context/AuthContext'
 import { useLanguage } from '../../context/LanguageContext'
 import { useMeta } from '../../context/MetaContext'
 import { date, daysFromNow, money, relative } from '../../lib/format'
+import { kpiValue } from '../../lib/kpi'
+import { pagePath } from '../../lib/meta'
 import { useApi } from '../../lib/useApi'
 
 export default function Dashboard() {
@@ -28,7 +30,8 @@ export default function Dashboard() {
     return () => clearInterval(timer)
   }, [data?.inbox_count, reload])
 
-  // Chiffres clés regroupés par module, dans l'ordre de la navigation
+  // Ce qui demande une action (retards, ruptures, validations) en tête, puis une carte par module
+  const alerts = (data?.kpis || []).filter((k) => k.alert)
   const groups = [...modules.filter((m) => m.key !== 'home'), ...modules.filter((m) => m.key === 'home')]
     .map((m) => ({ module: m, kpis: (data?.kpis || []).filter((k) => k.module === m.key) }))
     .filter((g) => g.kpis.length)
@@ -63,16 +66,41 @@ export default function Dashboard() {
         <div className="grid grid-4">{[0, 1, 2, 3].map((i) => <div key={i} className="card stat"><div className="skeleton" style={{ height: 60 }} /></div>)}</div>
       ) : null}
       {data && !groups.length ? <EmptyState title={t('home.no_kpi')} /> : null}
-      <div className="stack lg">
-        {groups.map(({ module, kpis }) => (
-          <section key={module.key} className="kpi-group" aria-label={pick(module.label)}>
-            <h2 className="kpi-group-title"><NamedIcon name={module.icon} size={15} /> {pick(module.label)}</h2>
-            <div className="grid grid-4">
-              {kpis.map((kpi) => <KpiCard key={kpi.key} kpi={kpi} />)}
-            </div>
-          </section>
-        ))}
-      </div>
+
+      {alerts.length ? (
+        <section className="kpi-group" aria-label={t('home.to_handle')}>
+          <h2 className="kpi-group-title"><AlertTriangle size={15} /> {t('home.to_handle')}</h2>
+          <div className="grid grid-4">{alerts.map((kpi) => <KpiCard key={kpi.key} kpi={kpi} />)}</div>
+        </section>
+      ) : null}
+
+      {groups.length ? (
+        <section className="kpi-group" aria-label={t('home.modules_title')}>
+          <h2 className="kpi-group-title"><Blocks size={15} /> {t('home.modules_title')}</h2>
+          <div className="module-cards">
+            {groups.map(({ module, kpis }) => (
+              <div className="card module-summary" key={module.key}>
+                <Link className="module-summary-head" to={pagePath(module, module.pages[0])}>
+                  <span className="module-icon sm"><NamedIcon name={module.icon} size={16} /></span>
+                  <span className="grow">{pick(module.label)}</span>
+                  <ArrowRight size={14} />
+                </Link>
+                <ul className="kpi-rows">
+                  {kpis.map((kpi) => (
+                    <li key={kpi.key}>
+                      <Link to={kpi.path || pagePath(module, module.pages[0])} className={`kpi-row ${kpi.alert ? 'alert' : ''}`}
+                        title={kpi.foot ? pick(kpi.foot, { n: kpi.count ?? 0 }) : undefined}>
+                        <span className="grow">{pick(kpi.label)}</span>
+                        <span className="mono nowrap">{kpiValue(kpi, language)}</span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       <div className="grid grid-main section-gap">
         <div className="stack lg">
