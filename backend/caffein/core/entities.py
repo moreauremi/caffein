@@ -537,6 +537,10 @@ def _clean_record(entity: Entity, fields: list[Field], data: dict, existing: dic
         label = fld.label[0]
         if fld.name in data:
             value = _clean_value(fld, data[fld.name], label)
+            if value is None and fld.type == "bool":  # ni oui ni non : la valeur enregistrée, ou la valeur par défaut
+                if existing is not None:
+                    continue
+                value = int(bool(fld.initial()))
         elif existing is None:
             value = fld.initial()
         else:
@@ -803,7 +807,8 @@ def run_action(entity: Entity, row_id: int, key: str, payload: dict, user: dict,
     row = get_row(entity, row_id, MANAGE)
     if not _when(action, row):
         raise Conflict("Cette action n'est pas possible dans l'état actuel de la fiche.")
-    return action.run(row, payload if isinstance(payload, dict) else {}, user)
+    # `module_level` : le niveau de l'utilisateur sur le module, pour une règle plus fine que Action.level
+    return action.run(row, payload if isinstance(payload, dict) else {}, {**(user or {}), "module_level": level})
 
 
 def options(entity: Entity, q: str | None = None, limit: int = 20, fill: dict[str, str] | None = None) -> list[dict]:

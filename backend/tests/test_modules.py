@@ -280,6 +280,17 @@ def test_entity_validation(client):
     assert client.get("/api/data/sales/orders?size=500").status_code == 422
 
 
+def test_empty_checkbox_keeps_its_value(client):
+    """Une case oui/non envoyée vide : valeur par défaut à la création, valeur enregistrée ensuite (pas d'erreur)."""
+    article = client.post("/api/data/technical/articles", json={"name": "Carton 40x30", "active": None})
+    assert article.status_code == 201 and article.json()["active"] is True
+    url = f"/api/data/technical/articles/{article.json()['id']}"
+    assert client.put(url, json={"active": False}).json()["active"] is False
+    res = client.put(url, json={"active": None, "name": "Carton 40x30 renforcé"})
+    assert res.status_code == 200 and res.json()["active"] is False and res.json()["name"] == "Carton 40x30 renforcé"
+    assert client.put(url, json={"active": "peut-être"}).status_code == 400
+
+
 def test_list_search_filter_sort(client):
     clients = client.get("/api/data/sales/clients?q=nova").json()
     assert clients["total"] == 1 and clients["rows"][0]["name"] == "Atelier Nova"

@@ -25,7 +25,7 @@ Ce document décrit les principes, le contrat d'un module et la marche à suivre
 |---|---|---|---|---|
 | Accueil | `home` | `/` | chiffres clés de chaque module, raccourcis, échéances, activité, « Mes vues » | — (toujours actif) |
 | Données techniques | `technical` | `/donnees-techniques` | articles, familles, nomenclatures, postes de charge, gammes, coûts de revient | — |
-| RH | `hr` | `/rh` | services, salariés, absences et congés | — |
+| RH | `hr` | `/rh` | services, salariés, absences et congés (jours ouvrés, fériés, soldes), notes de frais | — |
 | Achats | `purchases` | `/achats` | fournisseurs, commandes fournisseurs, réceptions | — |
 | Ventes | `sales` | `/ventes` | clients, devis et factures, commandes clients | — |
 | CRM | `crm` | `/crm` | prospects, opportunités, actions commerciales | — |
@@ -116,14 +116,20 @@ aperçu des calculs, choix des références, export tableur `…/export`) et les
 Options : `required`, `unique` (insensible à la casse), `default` (valeur ou fonction), `readonly` (rempli par le
 serveur), `computed` (pas une colonne : calculé par `compute`), `hidden` (lu avec la fiche, jamais affiché),
 `sensitive` (visible et modifiable seulement au niveau gestion), `list` (colonne de la liste), `search`, `filter`
-(`enum`, `bool`, `ref`), `help` (aide sous le champ), `width="full"`.
+(`enum`, `bool`, `ref`), `help` (aide sous le champ), `width="full"`. Une case `bool` envoyée vide garde sa valeur
+(ou prend sa valeur par défaut à la création).
+
+**Vue en colonnes** — `Entity(..., board="status")` : à côté de la liste, un tableau avec une colonne par valeur du
+champ à choix (étapes d'une opportunité, statuts d'une commande…). Le serveur range les fiches et calcule le nombre
+et le total de chaque colonne (premier montant affiché dans la liste) ; route `GET /api/data/<module>/<entité>/board`.
 
 **Lignes** — `Child(key, label, table, fk, fields, min_rows=0, max_rows=500)` : enregistrées avec la fiche, dans la même
 transaction. Des lignes dont tous les champs sont `readonly`/`computed` (besoins calculés…) ne se saisissent pas.
 
 **Actions** — `Action(key, label, run, when=…, level=WRITE, confirm=(fr, en), style="primary"|"danger", icon)` : un
 bouton de la fiche. `run(row, payload, user)` fait le traitement (et peut renvoyer un message) ; `when(row)` décide
-s'il s'affiche ; `level=MANAGE` réserve l'action (validation d'un congé…).
+s'il s'affiche ; `level=MANAGE` réserve l'action (validation d'un congé…). `user["module_level"]` donne le niveau de
+l'utilisateur sur le module, pour une règle plus fine (annuler une absence déjà commencée : gestion seulement).
 
 **Crochets de l'entité** :
 
@@ -174,6 +180,9 @@ abonné annule l'action : émettre **avant** d'enregistrer le changement d'état
 - **Logistique** (`modules/stock/services.py`) : `on_hand(article_id, warehouse_id=None)`, `default_warehouse_id()`,
   `post(kind, lignes, sign=…, reference=…, date=…, source=…)`.
 - **Ventes** (`caffein/services.py`) : `create_invoice({...})` (devis ou facture brouillon), `create_client({...})`.
+- **RH** (`modules/hr/services.py`) : `employee(id)`, `is_absent(employee_id, day=None)`,
+  `absent_employee_ids(day=None)`, `leave_balance(employee_id, year=None)`, `working_days(début, fin)`,
+  `is_working_day(jour)`, `public_holidays(année)` (jours fériés français, Pâques comprise).
 
 Appeler un service d'un autre module seulement s'il est actif (`core.modules.is_enabled("stock")`), ou s'il est
 déclaré dans `depends`.

@@ -221,8 +221,6 @@ def _employee_prepare(values: dict, existing: dict | None) -> None:
     first = values.get("first_name", (existing or {}).get("first_name")) or ""
     last = values.get("last_name", (existing or {}).get("last_name")) or ""
     values["full_name"] = f"{first} {last}".strip()
-    if "active" in values and values["active"] is None:  # case laissée vide : l'état reste le même (actif par défaut)
-        values.pop("active")
 
 
 def _employee_validate(values: dict, existing: dict | None) -> None:
@@ -349,7 +347,8 @@ def _refuse_absence(row: dict, payload: dict, user: dict) -> str:
 def _cancel_absence(row: dict, payload: dict, user: dict) -> str:
     # Une absence validée et déjà commencée appartient à l'historique (congés décomptés) : la gestion seule l'annule
     started = row["status"] == "approved" and (row.get("start_date") or "") <= _today()
-    if started and level_for(user, "hr") < MANAGE:
+    level = user["module_level"] if "module_level" in user else level_for(user, "hr")
+    if started and level < MANAGE:
         raise Forbidden("Cette absence validée a déjà commencé : seul un responsable (niveau gestion) peut l'annuler.")
     _set_absence(row["id"], "cancelled")
     return f"Absence {row['code']} annulée."
@@ -357,7 +356,7 @@ def _cancel_absence(row: dict, payload: dict, user: dict) -> str:
 
 ABSENCES = Entity(
     module="hr", name="absences", table="hr_absences", label=("Absence", "Absence"), plural=("Absences", "Absences"),
-    title="code", order_by="start_date DESC, id DESC", icon="CalendarOff",
+    title="code", order_by="start_date DESC, id DESC", icon="CalendarOff", board="status",
     description=("Congés, RTT, maladie, formation : les demandes et leur validation. Les jours ouvrés excluent les "
                  "week-ends et les jours fériés.",
                  "Leave, time off, sick leave, training: requests and approvals. Working days exclude weekends and "
@@ -482,6 +481,7 @@ EXPENSE_LINE_FIELDS = [
 EXPENSES = Entity(
     module="hr", name="expenses", table="hr_expenses", label=("Note de frais", "Expense report"),
     plural=("Notes de frais", "Expense reports"), title="code", subtitle="title", order_by="date DESC, id DESC", icon="Receipt",
+    board="status",
     description=("Les dépenses avancées par les salariés : soumission, validation et remboursement. Une fois remboursée, "
                  "la note rejoint les justificatifs de la Comptabilité, si elle est active.",
                  "Expenses paid by employees: submission, approval and refund. Once paid, the report joins the "
