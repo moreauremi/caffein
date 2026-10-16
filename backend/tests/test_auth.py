@@ -8,7 +8,8 @@ def test_api_requires_login(anon):
     assert anon.get("/api/health").status_code == 200
     assert anon.get("/api/home").status_code == 401
     assert anon.get("/api/invoices").status_code == 401
-    assert anon.get("/api/setup/status").json() == {"needs_setup": False, "demo": False, "version": anon.get("/api/health").json()["version"]}
+    assert anon.get("/api/setup/status").json() == {"needs_setup": False, "demo": False, "modules": [],
+                                                    "version": anon.get("/api/health").json()["version"]}
 
 
 def test_login_logout(anon):

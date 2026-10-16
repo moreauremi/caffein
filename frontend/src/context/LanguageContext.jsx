@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
-import { translate } from '../lib/i18n'
+import { pick as pickLabel, translate } from '../lib/i18n'
 
-const LanguageContext = createContext({ language: 'fr', setLanguage: () => {}, t: (k) => k })
+const LanguageContext = createContext({ language: 'fr', setLanguage: () => {}, t: (k) => k, pick: (l) => (Array.isArray(l) ? l[0] : l || '') })
 
 function initialLanguage() {
   try {
@@ -31,7 +31,9 @@ export function LanguageProvider({ children }) {
   }, [])
 
   const t = useCallback((key, vars) => translate(language, key, vars), [language])
-  const value = useMemo(() => ({ language, setLanguage, t }), [language, setLanguage, t])
+  // Libellés venus du serveur ([français, anglais]) : modules, pages, champs, chiffres clés
+  const pick = useCallback((label, vars) => pickLabel(language, label, vars), [language])
+  const value = useMemo(() => ({ language, setLanguage, t, pick }), [language, setLanguage, t, pick])
   return <LanguageContext.Provider value={value}>{children}</LanguageContext.Provider>
 }
 

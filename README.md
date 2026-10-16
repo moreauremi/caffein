@@ -2,9 +2,10 @@
 
 # Caffein
 
-**L'admin en pilote automatique pour les freelances, micro-entrepreneurs et TPE.**
+**L'ERP libre et modulaire des petites entreprises.**
 
-Devis et factures en langage naturel · relances d'impayés automatiques · suivi de la TVA · tableau de bord URSSAF.
+Ventes, achats, stock, production, RH, projets, comptabilité… activez seulement ce qu'il vous faut.
+Les données vivent dans des tables SQL, les calculs sont faits par le serveur, chacun ne voit que ses modules.
 Logiciel libre, auto-hébergé sur votre serveur Linux ou dans un conteneur.
 
 [![Licence AGPL-3.0](https://img.shields.io/badge/licence-AGPL--3.0-E8510E)](LICENSE)
@@ -15,8 +16,36 @@ Logiciel libre, auto-hébergé sur votre serveur Linux ou dans un conteneur.
 
 </div>
 
+## Les modules
+
+| Module | Ce qu'il fait |
+|---|---|
+| **Accueil** | les chiffres clés de chaque module, des raccourcis, les échéances, ce que Caffein a fait pour vous, et « Mes vues » |
+| **Données techniques** | articles, familles, nomenclatures, postes de charge, gammes ; coût de revient calculé de proche en proche |
+| **RH** | salariés, services, absences et congés (jours ouvrés, jours fériés, soldes), notes de frais |
+| **Achats** | fournisseurs, commandes fournisseurs, réceptions qui alimentent le stock |
+| **Ventes** | devis et factures en une phrase, relances, commandes clients (livraison, facturation en un clic) |
+| **CRM** | prospects, opportunités pondérées, actions commerciales, devis en un clic |
+| **Production** | ordres de fabrication, besoins en composants et ruptures, charge des postes |
+| **Logistique** | entrepôts, mouvements, stock par article, réapprovisionnement, valeur du stock |
+| **Projets** | projets, tâches, temps passés, facturation des temps |
+| **Qualité** | non-conformités, actions correctives et préventives |
+| **Maintenance** | équipements, maintenance préventive, interventions |
+| **Comptabilité** | TVA, URSSAF, justificatifs lus et classés automatiquement |
+| **Paramètres** | utilisateurs, rôles et droits par module, activation des modules, automatisations |
+
+Les modules se parlent sans dépendre les uns des autres : livrer une commande sort les articles du stock, réceptionner une
+commande fournisseur les y fait entrer, déclarer une fabrication consomme les composants… si la Logistique est active.
+Ajouter un module ne touche pas aux autres : voir [docs/modules.md](docs/modules.md).
+
 ## Fonctionnalités
 
+- **Droits par module.** Activez ou désactivez chaque module pour toute l'entreprise ; donnez à chacun un rôle
+  (Commercial, Acheteur, Comptable…) qui fixe son niveau par module (aucun, lecture, écriture, gestion), avec des
+  dérogations personnelles. Un module sans droit n'apparaît pas ; le serveur vérifie chaque accès.
+- **Des écrans cohérents partout.** Chaque liste a sa recherche, ses filtres, son tri et son export tableur ; chaque fiche
+  ses lignes, ses actions (confirmer, livrer, réceptionner, valider un congé…) et ses totaux, recalculés par le serveur
+  pendant la saisie.
 - **Factures et devis en une phrase.** « Mission logo pour Jean Martin, 800 €, livraison le 15 » suffit pour créer un brouillon
   (client, lignes, dates). PDF A4 avec les mentions légales (EI, SIRET, TVA ou art. 293 B, pénalités de retard, SIREN du client),
   numérotation continue, transformation devis → facture, envoi par email et page de consultation pour le client avec l'IBAN.
@@ -24,14 +53,16 @@ Logiciel libre, auto-hébergé sur votre serveur Linux ou dans un conteneur.
   une fois par semaine au plus, avec une notification à chaque envoi.
 - **Justificatifs classés tout seuls.** Déposez une facture fournisseur (PDF ou photo) : fournisseur, montants, catégorie et échéance
   sont extraits, chiffrés en AES-256-GCM, puis le fichier est renommé et rangé par fournisseur.
-- **TVA.** TVA collectée (à l'encaissement), TVA déductible, balance à reverser, échéance et évolution sur l'année.
-- **URSSAF.** Chiffre d'affaires encaissé, cotisations selon votre activité, déclarations mensuelles ou trimestrielles,
-  suivi du plafond micro-entreprise et du seuil de franchise de TVA.
-- **Automatisations.** Huit scripts Python planifiés (classement, PDF, envois, relances, alertes…), avec leur historique
-  et une boîte d'envoi pour relire chaque email.
-- **Multi-utilisateurs.** Rôles administrateur et membre, assistant d'installation, interface FR/EN, thème clair ou sombre.
+- **Mes vues : un tableau de bord à la demande.** « Montre-moi mon chiffre d'affaires par mois et les articles à réapprovisionner » :
+  la page se compose, « ajoute mes dépenses » ou « enlève les impayés » la modifient, et une vue enregistrée revient en un clic.
+  L'IA choisit des cartes dans un catalogue ; elle ne voit jamais vos chiffres. Voir [docs/tableau-de-bord-ia.md](docs/tableau-de-bord-ia.md).
+- **TVA et URSSAF.** TVA collectée (à l'encaissement) et déductible, balance à reverser, échéances ; chiffre d'affaires encaissé,
+  cotisations, déclarations mensuelles ou trimestrielles, plafond micro-entreprise et seuil de franchise de TVA.
+- **Automatisations.** Des scripts Python planifiés (classement, PDF, envois, relances, alertes…), rattachés à leur module,
+  avec leur historique et une boîte d'envoi pour relire chaque email.
 - **Local par défaut.** Sans clé ni serveur mail, tout fonctionne : l'IA passe en analyse locale et les emails restent
   dans la boîte d'envoi. Aucune donnée ne quitte votre serveur tant que vous ne branchez pas Claude ou un SMTP.
+  Interface en français et en anglais, thème clair ou sombre, utilisable sur téléphone.
 
 | | |
 |---|---|
@@ -140,6 +171,7 @@ Pour une sauvegarde quotidienne : `0 2 * * * /usr/local/bin/caffein backup` dans
 | `migrate` | applique les migrations de la base |
 | `jobs` / `run <script>` | liste ou lance un script d'automatisation |
 | `seed --demo` | charge les données de démonstration |
+| `modules [enable\|disable M]` | liste, active ou désactive un module (`stock`, `hr`…) |
 | `health` | vérifie que le serveur répond |
 
 **Journaux** : `journalctl -u caffein -f` ou `docker compose logs -f`.
@@ -147,12 +179,16 @@ Pour une sauvegarde quotidienne : `0 2 * * * /usr/local/bin/caffein backup` dans
 ## Architecture
 
 API **FastAPI** et base **SQLite**, interface **React** (Vite, React Router, Recharts) servie par le même processus, et un
-planificateur intégré qui lance les scripts d'automatisation. Pas de service externe obligatoire. Le détail (modèle de données,
-sécurité, scripts, migrations) est dans [docs/architecture.md](docs/architecture.md).
+planificateur intégré qui lance les scripts d'automatisation. Pas de service externe obligatoire.
+
+Chaque module déclare ses tables, ses entités (champs typés, lignes, actions, calculs), ses pages, ses droits et ses chiffres
+clés ; un moteur générique en tire l'API et les écrans. Le détail est dans [docs/architecture.md](docs/architecture.md)
+(modèle de données, sécurité, scripts, migrations) et [docs/modules.md](docs/modules.md) (contrat d'un module, droits,
+événements entre modules).
 
 ```
-backend/caffein/   api/ · jobs/ (scripts) · services.py · ai.py · auth.py · db.py (migrations) · pdf_invoice.py …
-frontend/src/      pages/ · components/ · context/ · lib/i18n.js (FR/EN)
+backend/caffein/   core/ (modules, droits, moteur de données) · modules/<module>/ · api/ · jobs/ · services.py · db.py …
+frontend/src/      components/ (coquille, écrans génériques) · modules/<module>/ (écrans sur mesure) · context/ · lib/
 deploy/            service systemd, reverse proxy, désinstallation
 ```
 

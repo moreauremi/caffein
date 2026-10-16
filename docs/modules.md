@@ -1,0 +1,371 @@
+# Architecture modulaire de Caffein
+
+Caffein est un ERP pour petites entreprises, découpé en **modules** : Accueil, Données techniques, RH, Achats, Ventes,
+CRM, Production, Logistique, Projets, Qualité, Maintenance, Comptabilité et Paramètres. Chaque module s'active ou se
+désactive dans les paramètres, et chaque utilisateur ne voit que les modules auxquels il a droit.
+
+Ce document décrit les principes, le contrat d'un module et la marche à suivre pour en ajouter un.
+
+## Les principes
+
+1. **Les données vivent dans des tables SQL.** Une entité métier = une table ; ses lignes (lignes de commande,
+   composants d'une nomenclature…) = une autre table, reliée par une clé étrangère. Pas de liste cachée dans un champ JSON.
+   Le JSON reste réservé aux journaux techniques (exécutions des scripts, emails) et aux préférences d'affichage.
+2. **Le serveur calcule, l'interface affiche.** Totaux, coûts de revient, niveaux de stock, besoins en composants,
+   soldes de congés, indicateurs : tout est calculé en Python (ou par une vue SQL) et renvoyé prêt à afficher. Pendant
+   une saisie, l'interface demande les totaux au serveur (`/preview`) : elle ne fait aucun calcul métier.
+3. **Un module est autonome.** Il déclare ses tables, ses écrans, ses droits, ses scripts et ses indicateurs dans
+   un seul dossier. Ajouter un module ne modifie pas les autres.
+4. **Rien ne casse.** Les migrations sont versionnées par module et jamais réécrites ; une instance existante garde
+   ses données, ses adresses et ses accès. Un module désactivé disparaît sans rien emporter.
+
+## Les modules
+
+| Module | Clé | Adresse | Contenu | Dépend de |
+|---|---|---|---|---|
+| Accueil | `home` | `/` | chiffres clés de chaque module, raccourcis, échéances, activité, « Mes vues » | — (toujours actif) |
+| Données techniques | `technical` | `/donnees-techniques` | articles, familles, nomenclatures, postes de charge, gammes, coûts de revient | — |
+| RH | `hr` | `/rh` | services, salariés, absences et congés (jours ouvrés, fériés, soldes), notes de frais | — |
+| Achats | `purchases` | `/achats` | fournisseurs, commandes fournisseurs, réceptions | — |
+| Ventes | `sales` | `/ventes` | clients, devis et factures, commandes clients | — |
+| CRM | `crm` | `/crm` | prospects, opportunités, actions commerciales | — |
+| Production | `production` | `/production` | ordres de fabrication, besoins en composants, charge des postes | `technical`, `stock` |
+| Logistique | `stock` | `/logistique` | entrepôts, mouvements, stock par article, réapprovisionnement | `technical` |
+| Projets | `projects` | `/projets` | projets, tâches, temps passés, facturation des temps | — |
+| Qualité | `quality` | `/qualite` | non-conformités, actions correctives et préventives | — |
+| Maintenance | `maintenance` | `/maintenance` | équipements, interventions préventives et correctives | — |
+| Comptabilité | `accounting` | `/comptabilite` | TVA, URSSAF, justificatifs | — |
+| Paramètres | `settings` | `/parametres` | compte, entreprise, utilisateurs, rôles et droits, modules, automatisations | — (toujours actif) |
+
+Les modules communiquent seulement par leurs **services** et leurs **événements**, et seulement si le module concerné
+est actif. Exemple : livrer une commande client annonce `sales.order_delivered` ; la Logistique, si elle est active,
+sort les articles du stock ; sinon la commande est simplement livrée.
+
+## Les droits
+
+- **Activation d'un module** (Paramètres → Modules) : un module désactivé disparaît pour tout le monde ; ses routes
+  répondent 404 et ses scripts ne tournent plus. Ses données restent en base. On ne peut pas désactiver un module dont
+  un autre module actif dépend, ni activer un module sans ses dépendances.
+- **Niveaux par module** : `aucun` (module masqué), `lecture`, `écriture` (créer, modifier, lancer les actions),
+  `gestion` (en plus : supprimer, voir les données sensibles comme les salaires, actions réservées).
+- **Rôles** (Paramètres → Rôles et droits) : un rôle est une grille module × niveau (« Commercial », « Acheteur »,
+  « Comptable »…), plus un niveau par défaut pour les autres modules (et ceux ajoutés plus tard).
+- **Dérogations par utilisateur** : pour un module, on peut donner à une personne un niveau différent de son rôle.
+- **Administrateurs** : tous les droits sur les modules actifs, et seuls à accéder aux paramètres de l'instance.
+
+Niveau effectif d'un utilisateur sur un module : module inactif → aucun ; administrateur → gestion ;
+sinon dérogation de l'utilisateur, à défaut niveau de son rôle pour ce module, à défaut niveau par défaut du rôle.
+L'Accueil est toujours visible ; les Paramètres sont en lecture pour les membres (leur compte, les automatisations
+de leurs modules). Le serveur vérifie ce niveau sur chaque route ; l'interface s'en sert seulement pour masquer.
+
+## Le contrat d'un module
+
+Un module est un paquet Python `backend/caffein/modules/<clé>/` qui expose `MODULE = Module(...)`
+(`caffein/core/modules.py`) :
+
+```python
+MODULE = Module(
+    key="hr", slug="rh", label=("RH", "HR"), icon="Users", order=20,
+    description=("Salariés, absences et congés", "Employees, absences and leave"),
+    depends=(),                      # modules requis
+    default_enabled=True,            # actif sur une nouvelle installation (l'assistant propose de décocher)
+    migrations=MIGRATIONS,           # [(1, "CREATE TABLE hr_employees …"), (2, …)]
+    entities=ENTITIES,               # entités : écrans de liste et de fiche générés, API /api/data/hr/…
+    pages=PAGES,                     # navigation du module (onglets)
+    router=router,                   # routes propres (facultatif) : core.deps.module_router("hr")
+    jobs=(),                         # scripts planifiés du module (noms dans jobs.JOBS)
+    kpis=[Kpi(...)],                 # chiffres clés pour l'accueil
+    shortcuts=[Shortcut(...)],       # raccourcis de l'accueil
+    events={"sales.order_delivered": handler},   # réactions aux événements des autres modules
+    references=[],                   # colonnes hors entités qui désignent une fiche (voir « Références »)
+    seed_demo=seed_demo,             # données de démonstration
+    reset_tables=("hr_absences", "hr_employees", "hr_departments"),  # vidées par la réinitialisation, enfants d'abord
+)
+```
+
+### Migrations et tables
+
+- Une liste `(version, sql)` propre au module, appliquée une fois et suivie dans `schema_migrations`. Pour faire
+  évoluer le schéma, on **ajoute** une version ; on ne modifie jamais une version publiée.
+- Tables préfixées par la clé du module (`hr_`, `stock_`…) ; `id INTEGER PRIMARY KEY AUTOINCREMENT` ;
+  textes `NOT NULL DEFAULT ''` ; nombres et dates nullables ; `created_at` et `updated_at` (remplis par le moteur).
+- Lignes enfants : `<parent>_id … REFERENCES <parent>(id) ON DELETE CASCADE` et `position INTEGER NOT NULL DEFAULT 0`.
+- **Pas de clé étrangère vers la table d'un autre module** : la référence est un `INTEGER` simple, vérifiée par le
+  moteur quand le module visé est actif. Les clés étrangères restent à l'intérieur d'un module.
+- Une vue SQL peut porter une consultation (niveaux de stock…) : l'entité est alors `readonly=True` et la vue a une
+  colonne `id` stable.
+
+### Entités (`caffein/core/entities.py`)
+
+Une entité déclare une table, ses champs, ses lignes, ses actions et ses calculs ; Caffein en tire l'API
+(`/api/data/<module>/<entité>` : liste, recherche, tri, filtres, fiche, création, modification, suppression, actions,
+aperçu des calculs, choix des références, export tableur `…/export`) et les écrans (liste, fiche dans un tiroir).
+
+**Champs** — `Field(name, label, type, …)` :
+
+| Type | Valeur | Remarques |
+|---|---|---|
+| `text`, `longtext`, `email`, `phone` | texte | `maxlength` (200 par défaut, 5000 pour `longtext`) |
+| `int`, `decimal`, `money`, `percent` | nombre | `min`, `max` ; « 1 250,50 » accepté ; `money` arrondi au centime (arrondi commercial, voir `utils.cents`) ; `percent` : 20 = 20 % |
+| `date` | `AAAA-MM-JJ` | `default=_today` (fonction) pour la date du jour |
+| `bool` | oui / non | |
+| `enum` | une valeur de `choices` | `choices=(("draft", ("Brouillon", "Draft")), ("done", ("Terminé", "Done"), "good"))` : le 3e élément (facultatif) colore le badge : `good`, `warn`, `bad`, `info`, `accent`, `outline` |
+| `ref` | id d'une fiche | `ref="technical.articles"` ; `fill={"description": "name", "unit_price": "sale_price"}` recopie des champs de la fiche choisie |
+| `code` | numéro automatique | `prefix="CF"` → `CF-2026-0001` ; `yearly=False` → `ART-0001` |
+
+Options : `required`, `unique` (insensible à la casse), `default` (valeur ou fonction), `readonly` (rempli par le
+serveur), `computed` (pas une colonne : calculé par `compute`), `hidden` (lu avec la fiche, jamais affiché),
+`sensitive` (visible et modifiable seulement au niveau gestion), `list` (colonne de la liste), `search`, `filter`
+(`enum`, `bool`, `ref`), `help` (aide sous le champ), `width="full"`. Une case `bool` envoyée vide garde sa valeur
+(ou prend sa valeur par défaut à la création).
+
+**Fiches actives** — `Entity(..., active="active")` (un champ oui/non) : les listes de choix des autres fiches ne
+proposent que les fiches actives (article arrêté, fournisseur, salarié parti) ; elles restent consultables.
+
+**Vue en colonnes** — `Entity(..., board="status")` : à côté de la liste, un tableau avec une colonne par valeur du
+champ à choix (étapes d'une opportunité, statuts d'une commande…). Le serveur range les fiches et calcule le nombre
+et le total de chaque colonne (premier montant affiché dans la liste) ; route `GET /api/data/<module>/<entité>/board`.
+
+**Lignes** — `Child(key, label, table, fk, fields, min_rows=0, max_rows=500)` : enregistrées avec la fiche, dans la même
+transaction. Des lignes dont tous les champs sont `readonly`/`computed` (besoins calculés…) ne se saisissent pas :
+`compute` les remplit (aussi pendant la saisie, où l'aperçu les renvoie complètes et la fiche les affiche).
+Une ligne envoyée avec son `id` est mise à jour (ses colonnes absentes ou invisibles pour l'utilisateur, comme une
+référence vers un module désactivé, sont conservées) ; une ligne sans `id` est nouvelle ; une ligne enregistrée
+absente de la liste est supprimée. Les contrôles (`validate`) reçoivent des lignes complètes.
+
+**Actions** — `Action(key, label, run, when=…, level=WRITE, confirm=(fr, en), style="primary"|"danger", icon)` : un
+bouton de la fiche. `run(row, payload, user)` fait le traitement (et peut renvoyer un message) ; `when(row)` décide
+s'il s'affiche ; `level=MANAGE` réserve l'action (validation d'un congé…). `user["module_level"]` donne le niveau de
+l'utilisateur sur le module, pour une règle plus fine (annuler une absence déjà commencée : gestion seulement).
+
+**Crochets de l'entité** :
+
+- `compute(rows)` : ajoute les champs calculés. Reçoit des fiches **avec** leurs lignes (fiche, aperçu de saisie) ou
+  **sans** (liste) : dans ce cas, calculer par une requête groupée sur tous les `id`.
+- `prepare(values, existing)` : ajuste les valeurs avant contrôle (signe d'une quantité, nom complet…).
+- `validate(values, existing)` : contrôles métier ; `ValueError("Champ : message.")` → erreur 400 affichée.
+- `locked(row)` : message si la fiche ne se modifie plus (commande confirmée…) ; les actions restent possibles.
+  Sans `before_delete`, une fiche verrouillée ne se supprime pas non plus.
+- `before_delete(row)` : décide seul de la suppression (`Conflict("message")` pour la refuser) ; une commande
+  annulée, verrouillée, peut ainsi rester supprimable. La fiche renvoyée porte `_deletable` (droits et règle) :
+  l'interface n'affiche « Supprimer » que si la suppression est possible.
+- `after_save(row_id, created)`, `delete_level` (gestion par défaut), `readonly` (vue SQL).
+
+**Références** : une fiche utilisée ailleurs ne se supprime pas (409, « utilisée ailleurs (commandes clients : 3) »).
+Les champs `ref` de toutes les entités sont trouvés tout seuls, même dans un module désactivé ; une colonne hors
+entité se déclare dans `Module.references` : `("invoice_lines", "article_id", "technical.articles", ("Factures", "Invoices"))`.
+Un champ `ref` vers un module désactivé disparaît des écrans et de l'API.
+
+**Messages d'erreur** : en français, commençant par le libellé du champ (« Quantité : elle doit être positive. »).
+
+### Pages, chiffres clés, raccourcis
+
+- `Page(slug, label, entity="hr.employees" | component="sales.invoices", icon, admin_only, min_level)` : une page
+  est un écran généré (entité) ou un écran sur mesure du registre de l'interface. Adresse : `/<slug du module>/<slug>`.
+- `Kpi(key, label, compute, unit="count"|"money"|"minutes"|"percent"|"days", foot=("{n} facture(s)", "{n} invoice(s)"),
+  icon, path, alert=lambda d: …)` : `compute()` renvoie `{"value": …, "count": …}` ; `path` peut porter un filtre
+  (`/logistique/stock?f_status=reorder`). Chaque chiffre clé s'affiche sur l'accueil et devient une carte possible
+  de « Mes vues » (« montre-moi les articles à réapprovisionner ») pour qui peut consulter le module.
+- `Shortcut(key, label, path, icon, level=WRITE)` : bouton de l'accueil (`?new=1` ouvre une fiche vierge, et
+  `?new=1&client_id=3` la préremplit).
+
+### Événements (`caffein/core/events.py`)
+
+Un module annonce ce qui se passe avec `events.emit(nom, données)` ; les modules **actifs** abonnés (`Module.events`)
+réagissent, dans l'ordre des dépendances, et peuvent renvoyer un message affiché à l'utilisateur. Une erreur d'un
+abonné annule l'action : émettre **avant** d'enregistrer le changement d'état. Un abonné doit être idempotent
+(la Logistique note le document d'origine et ne le compte jamais deux fois).
+
+| Événement | Émis par | Données | Abonnés |
+|---|---|---|---|
+| `sales.order_confirmed` | Ventes (confirmer une commande) | `order_id`, `code`, `lines` | — |
+| `sales.order_delivered` | Ventes (livrer) | `order_id`, `code`, `date`, `lines: [{article_id, description, quantity, unit_price}]` | Logistique (sorties) |
+| `purchases.order_received` | Achats (réceptionner) | `order_id`, `code`, `date`, `warehouse_id` (facultatif), `lines: [{article_id, description, quantity, unit_price}]` | Logistique (entrées au coût d'achat) |
+| `production.order_completed` | Production (déclarer la fabrication) | `order_id`, `code`, `date`, `article_id`, `quantity`, `warehouse_id` (facultatif), `components: [{article_id, quantity}]` | Logistique (entrée du produit, consommation des composants) |
+
+### Services partagés
+
+- **Données techniques** (`modules/technical/services.py`) : `article(id)`, `is_stocked(id)`, `active_bom(id)`,
+  `components_for(article_id, quantité)` (besoins, pertes comprises), `active_routing(id)`, `cost_price(id)`
+  (coût de revient : achat, sinon matière + gamme, de proche en proche).
+- **Logistique** (`modules/stock/services.py`) : `on_hand(article_id, warehouse_id=None)`, `default_warehouse_id()`,
+  `post(kind, lignes, sign=…, reference=…, date=…, source=…)`.
+- **Ventes** (`caffein/services.py`) : `create_invoice({...})` (devis ou facture brouillon), `create_client({...})`.
+- **RH** (`modules/hr/services.py`) : `employee(id)`, `is_absent(employee_id, day=None)`,
+  `absent_employee_ids(day=None)`, `leave_balance(employee_id, year=None)`, `working_days(début, fin)`,
+  `is_working_day(jour)`, `public_holidays(année)` (jours fériés français, Pâques comprise).
+
+Montants calculés : `caffein.utils.cents(x)` arrondit au centime, la moitié vers le haut (0,125 → 0,13), comme
+une facture ; `round()` de Python arrondit les demis au pair et ne convient pas.
+
+Appeler un service d'un autre module seulement s'il est actif (`core.modules.is_enabled("stock")`), ou s'il est
+déclaré dans `depends`.
+
+Champs des entités partagées sur lesquels les autres modules s'appuient :
+
+- `technical.articles` (`technical_articles`) : `code`, `name` (titre), `kind` (`goods`, `raw`, `semi`, `finished`,
+  `service`), `unit`, `sale_price`, `purchase_price`, `vat_rate`, `min_stock`, `reorder_qty`, `active` ;
+- `sales.clients` (`clients`) : `name` (titre), `email`, `city` ;
+- `purchases.suppliers` (`purchases_suppliers`) : `name` (titre), `email` ;
+- `hr.employees` (`hr_employees`) : `full_name` (titre), `email`, `department_id` ;
+- `technical.workcenters` (`technical_workcenters`) : `name` (titre), `hourly_cost`, `capacity_hours`.
+
+### Interface
+
+Un module **purement déclaratif n'a besoin d'aucun fichier dans l'interface** : navigation, écrans, libellés
+(français et anglais) et droits viennent de `/api/meta`. Les icônes se choisissent dans la liste de
+`frontend/src/lib/icons.js` (un nom inconnu affiche une icône générique).
+
+Un module avec des écrans sur mesure ajoute `frontend/src/modules/<clé>/index.js`, qui exporte
+`{ components: { '<clé>.<écran>': lazy(() => import('./Ecran')) }, translations: { … } }`, et l'ajoute à la liste de
+`frontend/src/modules/index.js`. Les écrans génériques (`components/entity/`) sont réutilisables dans un écran sur mesure.
+
+## Ajouter un module
+
+1. Créer `backend/caffein/modules/<clé>/__init__.py` avec `MODULE = Module(...)`, ses migrations et ses entités.
+2. L'ajouter à la liste `MODULES` de `backend/caffein/modules/__init__.py`.
+3. Écrire ses tests dans `backend/tests/modules/test_<clé>.py` (outils communs : `tests/modules/helpers.py`).
+
+Le **contrat** (`backend/tests/test_module_contract.py`) vérifie ensuite le nouveau module sans rien écrire : clé,
+adresse et libellés, icônes et écrans connus de l'interface, tables conformes aux entités et vidées par la
+réinitialisation, listes, tris, filtres, exports, fiches et aperçus sur les données de démonstration (chaque entité
+en a), chiffres clés calculables sur une base vide, rôle « Lecture seule » qui ne modifie rien, et surtout
+désactivation du module sans casser les autres.
+
+Au démarrage suivant, ses tables sont créées. Sur une instance existante, un nouveau module arrive **désactivé** :
+l'administrateur l'active dans Paramètres → Modules. Sur une nouvelle installation, l'assistant propose les modules.
+
+Exemples à suivre : `modules/sales/entities.py` (commande client : lignes, actions, événement),
+`modules/technical/` (référentiel, coûts calculés, services), `modules/stock/` (vues SQL, abonnements aux événements).
+
+### Exemple complet : un module « Flotte » en un fichier
+
+Un module minimal mais complet : une table, une entité avec un champ calculé en Python, une vue en colonnes, une
+page, un chiffre clé (mis en avant quand un contrôle approche), un raccourci et des données de démonstration.
+L'interface (liste, recherche, filtres, tableau, fiche, export) est générée sans une ligne de React. Ce code passe le
+contrat des modules tel quel.
+
+`backend/caffein/modules/fleet/__init__.py` :
+
+```python
+# SPDX-License-Identifier: AGPL-3.0-or-later
+"""Flotte : les véhicules de l'entreprise et leurs contrôles techniques (exemple de docs/modules.md)."""
+
+from __future__ import annotations
+
+from datetime import timedelta
+
+from ... import db
+from ...core.entities import Entity, Field, save_row
+from ...core.modules import MANAGE, Kpi, Module, Page, Shortcut
+from ...utils import parse_date, today
+
+MIGRATIONS = [(1, """
+CREATE TABLE IF NOT EXISTS fleet_vehicles (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    code TEXT NOT NULL DEFAULT '',
+    name TEXT NOT NULL DEFAULT '',
+    plate TEXT NOT NULL DEFAULT '',
+    mileage INTEGER,
+    next_inspection TEXT,
+    status TEXT NOT NULL DEFAULT 'available',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+""")]
+
+STATUSES = (("available", ("Disponible", "Available"), "good"), ("in_use", ("En mission", "In use"), "info"),
+            ("garage", ("Au garage", "At the garage"), "warn"))
+
+
+def _days_left(rows: list[dict]) -> None:
+    """Calcul en Python : jours avant le prochain contrôle technique (négatif = en retard)."""
+    for row in rows:
+        due = parse_date(row.get("next_inspection"))
+        row["days_left"] = (due - today()).days if due else None
+
+
+VEHICLES = Entity(
+    module="fleet", name="vehicles", table="fleet_vehicles", label=("Véhicule", "Vehicle"),
+    plural=("Véhicules", "Vehicles"), title="name", subtitle="plate", order_by="name COLLATE NOCASE",
+    icon="Car", board="status", compute=_days_left,
+    fields=[
+        Field("code", ("Numéro", "Number"), type="code", prefix="VEH", yearly=False, readonly=True, list=True),
+        Field("name", ("Véhicule", "Vehicle"), required=True, list=True, search=True),
+        Field("plate", ("Immatriculation", "Plate"), list=True, search=True, maxlength=12),
+        Field("mileage", ("Kilométrage", "Mileage"), type="int", min=0, max=2_000_000),
+        Field("next_inspection", ("Prochain contrôle technique", "Next inspection"), type="date", list=True),
+        Field("status", ("Statut", "Status"), type="enum", choices=STATUSES, default="available", list=True,
+              filter=True),
+        Field("days_left", ("Jours avant le contrôle", "Days to inspection"), type="int", computed=True, list=True),
+    ],
+)
+
+
+def _to_inspect() -> dict:
+    limit = (today() + timedelta(days=30)).isoformat()
+    n = db.fetch_one("SELECT COUNT(*) AS n FROM fleet_vehicles WHERE next_inspection <= ?", (limit,))["n"]
+    return {"value": n, "count": n}
+
+
+def _seed_demo() -> None:
+    for name, plate, days in (("Kangoo de livraison", "GA-123-BC", 12), ("Clio de l'atelier", "FB-456-DE", 200)):
+        save_row(VEHICLES, {"name": name, "plate": plate, "next_inspection": (today() + timedelta(days=days)).isoformat()},
+                 MANAGE)
+
+
+MODULE = Module(
+    key="fleet", slug="flotte", label=("Flotte", "Fleet"), icon="Car", order=88,
+    description=("Les véhicules de l'entreprise et leurs contrôles techniques.", "Company vehicles and their inspections."),
+    migrations=MIGRATIONS, entities=[VEHICLES],
+    pages=[Page("vehicules", ("Véhicules", "Vehicles"), entity="fleet.vehicles", icon="Car")],
+    kpis=[Kpi("to_inspect", ("Véhicules à faire contrôler", "Vehicles due for inspection"), _to_inspect, icon="Car",
+              path="/flotte/vehicules", alert=lambda d: d["value"] > 0)],
+    shortcuts=[Shortcut("new_vehicle", ("Nouveau véhicule", "New vehicle"), "/flotte/vehicules?new=1", icon="Car")],
+    seed_demo=_seed_demo, reset_tables=("fleet_vehicles",),
+)
+```
+
+Dans `backend/caffein/modules/__init__.py` : `from . import …, fleet, …` et `fleet.MODULE` dans `MODULES`.
+
+`backend/tests/modules/test_fleet.py` (le contrat vérifie déjà la déclaration, les tables, les écrans, la
+désactivation ; ces tests ne vérifient que la logique propre au module) :
+
+```python
+# SPDX-License-Identifier: AGPL-3.0-or-later
+"""Flotte : l'exemple de docs/modules.md (le contrat des modules vérifie le reste)."""
+
+from datetime import timedelta
+
+from caffein.utils import today
+
+from .helpers import login_as, make_member
+
+BASE = "/api/data/fleet/vehicles"
+
+
+def test_vehicle_and_days_to_inspection(client):
+    due = (today() + timedelta(days=10)).isoformat()
+    vehicle = client.post(BASE, json={"name": "Trafic", "plate": "HC-789-FG", "next_inspection": due}).json()
+    assert vehicle["code"].startswith("VEH-") and vehicle["days_left"] == 10 and vehicle["status"] == "available"
+    assert client.post(BASE, json={"name": "Trafic", "mileage": -5}).json()["detail"] == "Kilométrage : 0 au minimum."
+    kpi = next(k for k in client.get("/api/home").json()["kpis"] if k["key"] == "fleet.to_inspect")
+    assert kpi["value"] == 2 and kpi["alert"] is True  # le Kangoo de la démonstration et le Trafic
+
+
+def test_read_only_member(client):
+    make_member("flotte@test.local", "readonly")
+    reader = login_as("flotte@test.local")
+    assert reader.get(BASE).status_code == 200 and reader.post(BASE, json={"name": "x"}).status_code == 403
+```
+
+## Les instances existantes
+
+La mise à jour est automatique et conserve tout :
+
+- les modules Accueil, Ventes, Comptabilité et Paramètres reprennent les écrans existants ; les nouveaux modules
+  arrivent désactivés ;
+- les membres reçoivent le rôle « Équipe (accès complet) », qui leur donne les mêmes accès qu'avant ;
+- les lignes des factures et devis, jusqu'ici dans un champ JSON, sont copiées dans la table `invoice_lines` ;
+- les anciennes adresses (`/factures`, `/tva`, `/urssaf`, `/documents`, `/automatisations`, `/vues`) redirigent vers
+  les nouvelles, et les liens envoyés aux clients (`/f/…`) ne changent pas.

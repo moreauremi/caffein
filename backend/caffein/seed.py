@@ -17,6 +17,7 @@ from datetime import datetime, time, timedelta
 
 from . import config, db, services
 from .ai import reminder_template
+from .core import modules as registry
 from .email_templates import TONE_LABELS, invoice_email, onboarding_email, reminder_email, reminder_subject, sender_name
 from .pdf_invoice import render_invoice_pdf, render_supplier_invoice_pdf
 from .utils import add_months, fmt_date_long, fmt_money, slugify_name, today
@@ -104,21 +105,62 @@ WELCOME_NOTIFICATIONS = [
     ("Pensez aux sauvegardes", "La commande « caffein backup » archive la base, les documents et la clé de chiffrement.", "⚠️ Information"),
 ]
 
-# Tables métier, dans un ordre compatible avec les clés étrangères
-BUSINESS_TABLES = ("emails", "job_runs", "documents", "invoices", "clients", "notifications", "declarations", "alerts_sent", "profile")
+# Tables métier du socle, dans un ordre compatible avec les clés étrangères
+BUSINESS_TABLES = ("emails", "job_runs", "documents", "invoice_lines", "invoices", "clients", "notifications", "declarations",
+                   "alerts_sent", "profile")
+
+
+def business_tables() -> list[str]:
+    """Tables vidées par une réinitialisation : celles des modules (les plus dépendants d'abord), puis celles du socle.
+    Les comptes, les rôles, les droits et l'activation des modules sont conservés."""
+    tables: list[str] = []
+    for module in reversed(registry.dependency_order()):
+        tables += [t for t in module.reset_tables if t not in tables]
+    return tables + [t for t in BUSINESS_TABLES if t not in tables]
+
+
+# Instance de démonstration : une équipe aux rôles différents, pour montrer les droits par module.
+# Mots de passe aléatoires et jamais affichés : on ne peut pas se connecter avec ces comptes.
+DEMO_TEAM = [
+    ("camille.roux@studio-durand.example", "Camille Roux", "sales", {}),
+    ("hugo.martin@studio-durand.example", "Hugo Martin", "production", {}),
+    ("lea.bernard@studio-durand.example", "Léa Bernard", "accountant", {"hr": 1}),
+    ("nina.lefevre@studio-durand.example", "Nina Lefèvre", "readonly", {"accounting": 0}),
+]
+
+
+def seed_demo_team() -> None:
+    """Membres de démonstration (mode démo seulement) ; ceux qui existent déjà sont laissés tels quels."""
+    import secrets
+
+    from . import auth
+    from .core import permissions
+
+    for email, name, role_key, overrides in DEMO_TEAM:
+        if auth.get_user_by_email(email):
+            continue
+        role = db.fetch_one("SELECT id FROM roles WHERE key = ?", (role_key,))
+        user = auth.create_user(email, secrets.token_urlsafe(24), name, "member", role_id=role["id"] if role else None)
+        if overrides:
+            permissions.set_user_overrides(user["id"], overrides)
 
 
 def is_empty() -> bool:
     return db.fetch_one("SELECT COUNT(*) AS n FROM clients")["n"] == 0
 
 
+def _clear_tables() -> None:
+    tables = business_tables()
+    with db.connect() as conn:
+        for table in tables:
+            conn.execute(f"DELETE FROM {table}")
+        conn.execute(f"DELETE FROM sqlite_sequence WHERE name IN ({', '.join('?' for _ in tables)})", tables)
+
+
 def wipe() -> None:
     """Efface toutes les données métier et les fichiers classés. Les comptes sont conservés."""
     db.init_db()
-    with db.connect() as conn:
-        for table in BUSINESS_TABLES:
-            conn.execute(f"DELETE FROM {table}")
-        conn.execute(f"DELETE FROM sqlite_sequence WHERE name IN ({', '.join('?' for _ in BUSINESS_TABLES)})", BUSINESS_TABLES)
+    _clear_tables()
     for folder in (config.DRIVE_DIR, config.OUTBOX_DIR):
         if folder.exists():
             shutil.rmtree(folder)
@@ -179,8 +221,7 @@ def seed(reset: bool = False) -> bool:
     config.ensure_dirs()
     ref = today()
 
-    for table in BUSINESS_TABLES:
-        db.execute(f"DELETE FROM {table}")
+    _clear_tables()
     db.insert("profile", {"id": 1, **PROFILE, "created_at": _stamp(2, 9, 12)})
     profile = services.get_profile()
 
@@ -322,4 +363,10 @@ def seed(reset: bool = False) -> bool:
         declared = datetime(ref.year, m + 1, 25, 18, 0, tzinfo=config.TIMEZONE)
         db.execute("INSERT OR REPLACE INTO declarations (period_key, declared_at) VALUES (?, ?)",
                    (f"{ref.year}-{m:02d}", declared.isoformat()))
+
+    # ── Modules : la démonstration les active tous, chacun apporte ses données ──
+    registry.enable_all()
+    for module in registry.dependency_order():
+        if module.seed_demo:
+            module.seed_demo()
     return True

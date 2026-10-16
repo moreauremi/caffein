@@ -6,6 +6,7 @@ from __future__ import annotations
 import re
 import unicodedata
 from datetime import date, datetime, timedelta
+from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 
 from . import config
@@ -65,6 +66,18 @@ def fmt_money(amount: float | None, currency: str = "€") -> str:
     return f"{sign}{NBSP.join(groups)},{decimals}{NBSP}{currency}"
 
 
+def fmt_number(value: float | int) -> str:
+    """1e9 → '1 000 000 000', 1250.5 → '1 250,5' : chiffres groupés, virgule décimale, jamais de notation scientifique."""
+    text = f"{float(value):.6f}".rstrip("0").rstrip(".")
+    sign, text = ("-", text[1:]) if text.startswith("-") else ("", text)
+    integer, _, decimals = text.partition(".")
+    groups = []
+    while integer:
+        groups.insert(0, integer[-3:])
+        integer = integer[:-3]
+    return f"{sign}{NBSP.join(groups) or '0'}{',' + decimals if decimals else ''}"
+
+
 def fmt_date(value: object) -> str:
     d = parse_date(value)
     return d.strftime("%d/%m/%Y") if d else ""
@@ -103,6 +116,12 @@ def unique_path(path: Path) -> Path:
         if not candidate.exists():
             return candidate
     raise RuntimeError(f"Impossible de trouver un nom libre pour {path}")
+
+
+def cents(value: float | int) -> float:
+    """Montant arrondi au centime, la moitié vers le haut (arrondi commercial des factures) : 0,125 → 0,13.
+    round() arrondit les demis au pair (0,125 → 0,12). Le nombre est lu tel qu'il s'écrit (2,675 → 2,68)."""
+    return float(Decimal(repr(float(value))).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
 
 
 def to_float(value: object) -> float | None:

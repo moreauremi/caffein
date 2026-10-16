@@ -16,11 +16,11 @@ const DICT = {
   'common.back_home': ['Retour à l’accueil', 'Back to home'],
 
   // ── Connexion & installation ──────────────────────────────────────
-  'auth.title_1': ['Ne faites plus votre admin', 'Stop doing your admin'],
-  'auth.title_2': ['du tout.', 'at all.'],
-  'auth.f1': ['Devis & factures en langage naturel', 'Quotes & invoices in plain language'],
-  'auth.f2': ['Relances d’impayés automatiques', 'Automatic payment reminders'],
-  'auth.f3': ['Tableau de bord URSSAF & TVA', 'URSSAF & VAT dashboard'],
+  'auth.title_1': ['Toute votre entreprise,', 'Your whole company,'],
+  'auth.title_2': ['au même endroit.', 'in one place.'],
+  'auth.f1': ['Ventes, achats, stock et production reliés', 'Sales, purchasing, stock and production, connected'],
+  'auth.f2': ['Des modules et des droits à votre mesure', 'Modules and permissions that fit your team'],
+  'auth.f3': ['Factures en une phrase, TVA et URSSAF suivies', 'Invoices in one sentence, VAT and URSSAF tracked'],
   'auth.side_foot': ['Logiciel libre (AGPL-3.0) · vos données restent sur votre serveur.', 'Free software (AGPL-3.0) · your data stays on your server.'],
   'login.title': ['Connexion', 'Log in'],
   'login.subtitle': ['Accédez à votre espace Caffein.', 'Access your Caffein workspace.'],
@@ -32,7 +32,7 @@ const DICT = {
   'login.demo_title': ['Instance de démonstration', 'Demo instance'],
   'login.demo_text': ['Explorez Caffein avec des données d’exemple, sans créer de compte.', 'Explore Caffein with sample data, no account needed.'],
   'login.demo_button': ['Accès démo', 'Open the demo'],
-  'setup.step': ['Installation · étape {n} sur 3', 'Setup · step {n} of 3'],
+  'setup.step': ['Installation · étape {n} sur {total}', 'Setup · step {n} of {total}'],
   'setup.title_0': ['Votre entreprise', 'Your company'],
   'setup.title_1': ['Votre régime fiscal', 'Your tax regime'],
   'setup.title_2': ['Le compte administrateur', 'The administrator account'],
@@ -69,7 +69,7 @@ const DICT = {
   'users.deleted': ['Compte supprimé', 'Account deleted'],
   'users.delete_confirm': ['Supprimer le compte {name} ?', 'Delete account {name}?'],
   'users.temp_password': ['Mot de passe provisoire', 'Temporary password'],
-  'users.roles_hint': ['Un membre gère factures, clients et documents. Un administrateur règle aussi l’entreprise, la fiscalité et les comptes.', 'A member handles invoices, clients and documents. An administrator also manages company, tax and accounts.'],
+  'users.roles_hint': ['Un membre accède aux modules selon son rôle métier (Paramètres → Rôles et droits). Un administrateur a tous les droits et règle l’instance : entreprise, utilisateurs, modules.', 'A member accesses modules according to their business role (Settings → Roles and permissions). An administrator has every permission and manages the instance: company, users, modules.'],
   'users.reset_password': ['Définir un mot de passe', 'Set a password'],
   'users.reset_title': ['Nouveau mot de passe pour {name}', 'New password for {name}'],
   'users.reset_hint': ['Les sessions ouvertes de ce compte seront fermées.', 'Open sessions for this account will be closed.'],
@@ -83,12 +83,30 @@ const DICT = {
 
   // ── Navigation & utilisateur ──────────────────────────────────────
   'nav.label': ['Navigation principale', 'Main navigation'],
+  'nav.modules': ['Modules', 'Modules'],
+  'nav.pages': ['Pages du module', 'Module pages'],
+  'nav.open_menu': ['Ouvrir le menu', 'Open menu'],
+  'nav.close_menu': ['Fermer le menu', 'Close menu'],
+  'nav.collapse': ['Réduire le menu', 'Collapse menu'],
+  'nav.expand': ['Déplier le menu', 'Expand menu'],
+  'nav.loading_error': ['Impossible de charger votre espace.', 'Unable to load your workspace.'],
+  'nav.retry': ['Réessayer', 'Try again'],
+  'nav.no_access': ['Ce module n’est pas activé, ou vous n’y avez pas accès.', 'This module is not enabled, or you do not have access to it.'],
+  'level.none': ['Aucun accès', 'No access'],
+  'level.read': ['Lecture', 'Read'],
+  'level.write': ['Écriture', 'Write'],
+  'level.manage': ['Gestion', 'Manage'],
+  'level.none_hint': ['Le module est masqué.', 'The module is hidden.'],
+  'level.read_hint': ['Consulter, sans rien modifier.', 'View only.'],
+  'level.write_hint': ['Créer, modifier, lancer les actions.', 'Create, edit, run actions.'],
+  'level.manage_hint': ['En plus : supprimer, voir les données sensibles.', 'Also: delete, see sensitive data.'],
   'nav.home': ['Accueil', 'Home'],
   'nav.tva': ['TVA', 'VAT'],
   'nav.invoices': ['Factures', 'Invoices'],
   'nav.documents': ['Documents', 'Documents'],
   'nav.urssaf': ['URSSAF', 'URSSAF'],
   'nav.automations': ['Automatisations', 'Automations'],
+  'nav.views': ['Mes vues', 'My views'],
   'user.menu': ['Menu du compte', 'Account menu'],
   'user.settings': ['Paramètres', 'Settings'],
   'user.dark': ['Mode sombre', 'Dark mode'],
@@ -467,6 +485,92 @@ const DICT = {
   'chart.show_chart': ['Graphique', 'Chart'],
   'chart.period': ['Période', 'Period'],
 
+  // ── Mes vues (tableau de bord à la demande) ────────────────────────
+  'views.title': ['Mes vues', 'My views'],
+  'views.subtitle': ['Dites ce que vous voulez voir : Caffein compose la page avec vos chiffres.', 'Say what you want to see: Caffein builds the page from your figures.'],
+  'views.mode_ai': ['IA activée', 'AI enabled'],
+  'views.mode_offline': ['Analyse locale', 'Local analysis'],
+  'views.mode_ai_help': ['Claude choisit les cartes. Il ne reçoit que votre demande, jamais vos chiffres.', 'Claude picks the cards. It only receives your request, never your figures.'],
+  'views.mode_offline_help': ['Sans clé Anthropic, Caffein comprend les demandes par mots-clés.', 'Without an Anthropic key, Caffein understands requests from keywords.'],
+  'views.ask_label': ['Ce que vous voulez voir', 'What you want to see'],
+  'views.ask_placeholder': ['Ex. : montre-moi mon chiffre d’affaires par mois et mes factures impayées', 'E.g.: show my monthly revenue and my unpaid invoices'],
+  'views.ask_button': ['Afficher', 'Show'],
+  'views.examples': ['Exemples de demandes', 'Example requests'],
+  'views.example_1': ['Mon chiffre d’affaires par mois et mes impayés', 'My monthly revenue and unpaid invoices'],
+  'views.example_2': ['Ajoute mes dépenses par catégorie cette année', 'Add my expenses by category this year'],
+  'views.example_3': ['Mes 5 plus gros clients', 'My top 5 clients'],
+  'views.example_4': ['La TVA du trimestre', 'VAT this quarter'],
+  'views.example_5': ['Mes prochaines échéances', 'My upcoming deadlines'],
+  'views.by_ai': ['Composé par Claude', 'Built by Claude'],
+  'views.by_local': ['Analyse locale', 'Local analysis'],
+  'views.msg.composed': ['Compris : voici votre vue.', 'Got it: here is your view.'],
+  'views.msg.added': ['C’est ajouté à la vue.', 'Added to the view.'],
+  'views.msg.removed': ['C’est retiré de la vue.', 'Removed from the view.'],
+  'views.msg.cleared': ['La vue est vide : dites ce que vous voulez voir.', 'The view is empty: say what you want to see.'],
+  'views.msg.remove_none': ['Cette carte n’est pas dans la vue.', 'That card is not in the view.'],
+  'views.msg.remove_unknown': ['Je ne vois pas quelle carte retirer. Vous pouvez aussi cliquer sur la croix d’une carte.', 'I can’t tell which card to remove. You can also click a card’s cross.'],
+  'views.msg.not_understood': ['Je n’ai pas compris. Essayez « mon chiffre d’affaires », « mes impayés », « mes dépenses », « la TVA », « mes devis » ou « mes échéances ».', 'I didn’t understand. Try “my revenue”, “unpaid invoices”, “expenses”, “VAT”, “quotes” or “deadlines”.'],
+  'views.msg.read_only': ['Cette page ne fait qu’afficher : pour modifier une facture ou un client, ouvrez la page Factures.', 'This page only displays data: to change an invoice or a client, open the Invoices page.'],
+  'views.saved_views': ['Vues enregistrées', 'Saved views'],
+  'views.no_saved': ['Aucune vue enregistrée pour l’instant.', 'No saved views yet.'],
+  'views.save': ['Enregistrer la vue', 'Save view'],
+  'views.update_short': ['Mettre à jour la vue', 'Update view'],
+  'views.delete_view': ['Supprimer la vue', 'Delete view'],
+  'views.load_error': ['Impossible de charger vos vues enregistrées.', 'Could not load your saved views.'],
+  'views.retry': ['Réessayer', 'Retry'],
+  'views.vat_exempt': ['Franchise en base de TVA : vous ne collectez pas de TVA et n’en récupérez pas.', 'VAT exemption (franchise en base): you neither charge nor recover VAT.'],
+  'views.msg.changed': ['C’est fait : l’affichage est changé.', 'Done: the display has changed.'],
+  'views.msg.period_unsupported': ['Je ne sais afficher que les périodes en cours (ce mois, ce trimestre, cette année, les 6 ou 12 derniers mois).', 'I can only show current periods (this month, this quarter, this year, the last 6 or 12 months).'],
+  'views.update': ['Mettre à jour « {name} »', 'Update “{name}”'],
+  'views.name_label': ['Nom de la vue', 'View name'],
+  'views.name_placeholder': ['Ex. : Pilotage mensuel', 'E.g.: Monthly overview'],
+  'views.saved': ['Vue « {name} » enregistrée : elle se recharge sans l’IA.', 'View “{name}” saved: it reloads without AI.'],
+  'views.updated': ['Vue « {name} » mise à jour.', 'View “{name}” updated.'],
+  'views.deleted': ['Vue supprimée.', 'View deleted.'],
+  'views.empty_title': ['Votre page est vide', 'Your page is empty'],
+  'views.empty_text': ['Écrivez ce que vous voulez voir, ou choisissez un exemple ci-dessus.', 'Write what you want to see, or pick an example above.'],
+  'views.privacy': ['L’IA ne voit jamais vos chiffres : elle choisit des cartes dans un catalogue, et Caffein calcule les données sur votre serveur. Cette page ne modifie rien.', 'The AI never sees your figures: it picks cards from a catalogue, and Caffein computes the data on your server. This page changes nothing.'],
+  'views.remove': ['Retirer « {title} »', 'Remove “{title}”'],
+  'views.no_data': ['Pas encore de données sur cette période.', 'No data for this period yet.'],
+  'views.no_unpaid': ['Aucune facture à encaisser.', 'No invoices to collect.'],
+  'views.no_quotes': ['Aucun devis en attente.', 'No pending quotes.'],
+  'views.kpi_count': ['{n} facture|{n} factures', '{n} invoice|{n} invoices'],
+  'views.kpi_foot.vat_balance': ['Ce mois-ci, collectée moins déductible', 'This month, collected minus deductible'],
+  'views.kpi_foot.time_saved': ['Documents classés, factures et relances', 'Filed documents, invoices and reminders'],
+  'views.days_late': ['depuis {n} jour|depuis {n} jours', '{n} day late|{n} days late'],
+  'views.unpaid_total': ['{n} facture · {amount}|{n} factures · {amount}', '{n} invoice · {amount}|{n} invoices · {amount}'],
+  'views.quotes_total': ['{n} devis · {amount}|{n} devis · {amount}', '{n} quote · {amount}|{n} quotes · {amount}'],
+  'views.metric.to_collect': ['À encaisser', 'To collect'],
+  'views.metric.overdue_total': ['En retard', 'Overdue'],
+  'views.metric.paid_month': ['Encaissé ce mois', 'Collected this month'],
+  'views.metric.revenue_year': ['CA encaissé de l’année', 'Revenue collected this year'],
+  'views.metric.quotes_pending': ['Devis en attente', 'Pending quotes'],
+  'views.metric.vat_balance': ['Solde de TVA', 'VAT balance'],
+  'views.metric.time_saved': ['Temps gagné', 'Time saved'],
+  'views.source.revenue_by_month': ['Chiffre d’affaires HT', 'Revenue (excl. VAT)'],
+  'views.source.revenue_by_client': ['CA HT par client', 'Revenue by client'],
+  'views.source.unpaid_invoices': ['Factures à encaisser', 'Invoices to collect'],
+  'views.source.overdue_invoices': ['Factures en retard', 'Overdue invoices'],
+  'views.source.expenses_by_category': ['Dépenses HT par catégorie', 'Expenses by category'],
+  'views.source.vat_by_month': ['TVA collectée et déductible', 'VAT collected and deductible'],
+  'views.source.pending_quotes': ['Devis en attente', 'Pending quotes'],
+  'views.source.deadlines': ['Prochaines échéances', 'Upcoming deadlines'],
+  'views.period.month': ['ce mois', 'this month'],
+  'views.period.quarter': ['ce trimestre', 'this quarter'],
+  'views.period.year': ['cette année', 'this year'],
+  'views.period.last_6_months': ['6 derniers mois', 'last 6 months'],
+  'views.period.last_12_months': ['12 derniers mois', 'last 12 months'],
+  'views.series.invoiced': ['Facturé', 'Invoiced'],
+  'views.series.paid': ['Encaissé', 'Collected'],
+  'views.series.amount': ['Montant HT', 'Amount'],
+  'views.series.collected': ['TVA collectée', 'VAT collected'],
+  'views.series.deductible': ['TVA déductible', 'VAT deductible'],
+  'views.col.client': ['Client', 'Client'],
+  'views.col.category': ['Catégorie', 'Category'],
+  'views.col.total': ['Total TTC', 'Total'],
+  'views.col.due': ['Échéance', 'Due'],
+  'views.col.issued': ['Envoyé le', 'Sent on'],
+
   // ── Paramètres ────────────────────────────────────────────────────
   'settings.title': ['Paramètres', 'Settings'],
   'settings.subtitle': ['Compte, entreprise, utilisateurs et fiscalité', 'Account, company, users and tax'],
@@ -551,6 +655,110 @@ const DICT = {
   'public.transfer': ['Régler par virement', 'Pay by bank transfer'],
   'public.beneficiary': ['Bénéficiaire', 'Beneficiary'],
   'public.reference': ['Référence à indiquer', 'Payment reference'],
+
+  // ── Écrans génériques (listes et fiches des modules) ──────────────
+  'entity.new': ['Nouveau', 'New'],
+  'entity.new_title': ['Nouvelle fiche · {name}', 'New record · {name}'],
+  'entity.search': ['Rechercher…', 'Search…'],
+  'entity.all': ['Tous', 'All'],
+  'entity.filters': ['Filtres', 'Filters'],
+  'entity.clear_filters': ['Effacer les filtres', 'Clear filters'],
+  'entity.count': ['{n} fiche|{n} fiches', '{n} record|{n} records'],
+  'entity.empty': ['Aucune fiche pour l’instant.', 'No records yet.'],
+  'entity.empty_search': ['Aucun résultat pour cette recherche.', 'No results for this search.'],
+  'entity.create_first': ['Créer la première', 'Create the first one'],
+  'entity.page': ['Page {page} sur {pages}', 'Page {page} of {pages}'],
+  'entity.prev': ['Page précédente', 'Previous page'],
+  'entity.next': ['Page suivante', 'Next page'],
+  'entity.sort_by': ['Trier par {name}', 'Sort by {name}'],
+  'entity.saved': ['Fiche enregistrée', 'Record saved'],
+  'entity.created': ['Fiche créée', 'Record created'],
+  'entity.deleted': ['Fiche supprimée', 'Record deleted'],
+  'entity.delete_confirm': ['Confirmer la suppression', 'Confirm deletion'],
+  'entity.locked': ['Fiche verrouillée', 'Locked record'],
+  'entity.readonly': ['Consultation seulement : vous n’avez pas les droits d’écriture sur ce module.', 'View only: you do not have write access to this module.'],
+  'entity.unsaved': ['Modifications non enregistrées', 'Unsaved changes'],
+  'entity.discard': ['Abandonner les modifications ?', 'Discard your changes?'],
+  'entity.add_line': ['Ajouter une ligne', 'Add a line'],
+  'entity.remove_line': ['Retirer la ligne {n}', 'Remove line {n}'],
+  'entity.no_lines': ['Aucune ligne.', 'No lines.'],
+  'entity.lines_count': ['{n} ligne|{n} lignes', '{n} line|{n} lines'],
+  'entity.line': ['Ligne {n}', 'Line {n}'],
+  'entity.choose': ['Choisir…', 'Choose…'],
+  'entity.none': ['Aucun', 'None'],
+  'entity.no_option': ['Aucun résultat', 'No results'],
+  'entity.yes': ['Oui', 'Yes'],
+  'entity.no': ['Non', 'No'],
+  'entity.loading': ['Chargement…', 'Loading…'],
+  'entity.computed': ['Calculé par Caffein', 'Calculated by Caffein'],
+  'entity.actions': ['Actions', 'Actions'],
+  'entity.details': ['Fiche', 'Details'],
+  'entity.not_found': ['Fiche introuvable.', 'Record not found.'],
+  'entity.export': ['Exporter', 'Export'],
+  'entity.view': ['Affichage', 'View'],
+  'entity.view_list': ['Liste', 'List'],
+  'entity.view_board': ['Tableau', 'Board'],
+  'entity.board_more': ['Voir l’autre fiche|Voir les {n} autres fiches', 'See {n} more record|See {n} more records'],
+  'entity.board_empty': ['Aucune fiche', 'No records'],
+  'invoices.article': ['Article', 'Item'],
+  'invoices.article_ph': ['Article du catalogue (facultatif)', 'Catalogue item (optional)'],
+  'entity.export_hint': ['Télécharger cette liste pour un tableur (CSV)', 'Download this list for a spreadsheet (CSV)'],
+
+  // ── Accueil (modules) ─────────────────────────────────────────────
+  'home.modules_title': ['Vos modules', 'Your modules'],
+  'home.to_handle': ['À traiter', 'Needs attention'],
+  'home.shortcuts': ['Raccourcis', 'Shortcuts'],
+  'home.no_kpi': ['Aucun chiffre clé : activez des modules dans Paramètres → Modules.', 'No key figures: enable modules in Settings → Modules.'],
+
+  // ── Paramètres : utilisateurs, rôles, modules ─────────────────────
+  'users.access': ['Accès aux modules', 'Module access'],
+  'users.access_hint': ['Par défaut, chaque module suit le rôle. Une dérogation donne à cette personne un autre niveau.', 'By default, each module follows the role. An override gives this person a different level.'],
+  'users.follow_role': ['Selon le rôle ({level})', 'From role ({level})'],
+  'users.admin_all': ['Administrateur : tous les droits sur les modules actifs.', 'Administrator: full access to active modules.'],
+  'users.business_role': ['Rôle métier', 'Business role'],
+  'users.account_type': ['Type de compte', 'Account type'],
+  'users.edit_access': ['Droits', 'Access'],
+  'users.access_title': ['Droits de {name}', 'Access for {name}'],
+  'users.access_saved': ['Droits enregistrés', 'Access saved'],
+  'users.inactive': ['Désactivé', 'Disabled'],
+  'users.no_role': ['Sans rôle', 'No role'],
+  'roles.title': ['Rôles et droits', 'Roles and permissions'],
+  'roles.lead': ['Un rôle est une grille de droits par module. Chaque membre a un rôle ; les administrateurs ont tous les droits.', 'A role is a grid of permissions per module. Each member has a role; administrators have every permission.'],
+  'roles.new': ['Nouveau rôle', 'New role'],
+  'roles.name': ['Nom du rôle', 'Role name'],
+  'roles.description': ['Description', 'Description'],
+  'roles.default_level': ['Autres modules', 'Other modules'],
+  'roles.default_hint': ['Niveau pour les modules non réglés ci-dessous (et les modules ajoutés plus tard).', 'Level for modules not set below (and modules added later).'],
+  'roles.system': ['Fourni', 'Built-in'],
+  'roles.users': ['{n} utilisateur|{n} utilisateurs', '{n} user|{n} users'],
+  'roles.saved': ['Rôle enregistré', 'Role saved'],
+  'roles.created': ['Rôle créé', 'Role created'],
+  'roles.deleted': ['Rôle supprimé', 'Role deleted'],
+  'roles.module': ['Module', 'Module'],
+  'roles.inactive': ['inactif', 'disabled'],
+  'roles.default_option': ['Par défaut ({level})', 'Default ({level})'],
+  'modules.title': ['Modules', 'Modules'],
+  'modules.lead': ['Activez les modules utiles à votre entreprise. Un module désactivé disparaît pour tout le monde ; ses données sont conservées.', 'Enable the modules your company needs. A disabled module disappears for everyone; its data is kept.'],
+  'modules.core': ['Toujours actif', 'Always on'],
+  'modules.enabled': ['Module activé', 'Module enabled'],
+  'modules.disabled': ['Module désactivé', 'Module disabled'],
+  'modules.depends': ['Nécessite : {names}', 'Requires: {names}'],
+  'modules.used_by': ['Utilisé par : {names}', 'Used by: {names}'],
+  'modules.contains': ['Contient : {names}', 'Contains: {names}'],
+  'modules.toggle': ['Activer {name}', 'Enable {name}'],
+  'setup.modules_title': ['Vos modules', 'Your modules'],
+  'setup.modules_lead': ['Choisissez ce dont votre entreprise a besoin. Vous pourrez en activer d’autres à tout moment (Paramètres → Modules).', 'Choose what your company needs. You can enable others at any time (Settings → Modules).'],
+}
+
+function format(entry, language, vars) {
+  let text = entry[language === 'en' ? 1 : 0] ?? entry[0] ?? ''
+  if (text.includes('|') && vars && 'n' in vars) {
+    const [one, many] = text.split('|')
+    const n = Number(vars.n)
+    text = (language === 'en' ? n !== 1 : n > 1) ? many : one
+  }
+  if (vars) text = text.replace(/\{(\w+)\}/g, (_, name) => (vars[name] ?? `{${name}}`))
+  return text
 }
 
 export function translate(language, key, vars) {
@@ -559,14 +767,21 @@ export function translate(language, key, vars) {
     if (import.meta.env.DEV) console.warn(`[i18n] clé manquante : ${key}`)
     return key
   }
-  let text = entry[language === 'en' ? 1 : 0] ?? entry[0]
-  if (text.includes('|') && vars && 'n' in vars) {
-    const [one, many] = text.split('|')
-    const n = Number(vars.n)
-    text = (language === 'en' ? n !== 1 : n > 1) ? many : one
+  return format(entry, language, vars)
+}
+
+// Libellé venu du serveur (modules, pages, champs) : [français, anglais], ou texte simple.
+export function pick(language, label, vars) {
+  if (label == null) return ''
+  if (typeof label === 'string') return vars ? format([label, label], language, vars) : label
+  return format(label, language, vars)
+}
+
+// Traductions apportées par un module de l'interface (frontend/src/modules/<clé>/) : n'écrasent rien.
+export function registerTranslations(entries) {
+  for (const [key, value] of Object.entries(entries || {})) {
+    if (!(key in DICT)) DICT[key] = value
   }
-  if (vars) text = text.replace(/\{(\w+)\}/g, (_, name) => (vars[name] ?? `{${name}}`))
-  return text
 }
 
 export const KEYS = Object.keys(DICT)

@@ -2,7 +2,9 @@
 def test_dashboards(client):
     assert client.get("/api/config").json()["ai"]["mode"] == "offline"
     home = client.get("/api/home").json()
-    assert home["stats"]["documents"] > 0 and len(home["notifications"]) == 4
+    kpis = {k["key"]: k for k in home["kpis"]}
+    assert kpis["accounting.documents"]["value"] > 0 and len(home["notifications"]) == 4
+    assert kpis["sales.to_collect"]["unit"] == "money" and home["next_deadlines"]
     for period in ("month", "quarter", "year"):
         tva = client.get(f"/api/tva?period={period}").json()
         assert "balance" in tva["metrics"] and tva["chart"]

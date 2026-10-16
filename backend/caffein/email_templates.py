@@ -163,12 +163,12 @@ def onboarding_email(step: str, name: str) -> tuple[str, str]:
              "relances des impayés, suivi de la TVA et des déclarations URSSAF.",
              "Pour commencer, décrivez simplement ce que vous voulez facturer : Caffein s'occupe de la numérotation, "
              "du PDF avec les mentions légales et de l'envoi."],
-            "Créer ma première facture", "/factures")
+            "Créer ma première facture", "/ventes/factures")
     if step == "tip":
         return "Une phrase suffit pour créer une facture", _brand_email(
             "C'est aussi simple que ça",
             ["Dans « Factures & devis », écrivez par exemple :"],
-            "Essayer maintenant", "/factures",
+            "Essayer maintenant", "/ventes/factures",
             highlight="<em>« Mission logo pour Jean Martin, 800 €, livraison le 15 »</em>")
     if step == "einvoicing":
         return "La facturation électronique, c'est maintenant", _brand_email(
@@ -177,7 +177,7 @@ def onboarding_email(step: str, name: str) -> tuple[str, str]:
              "L'émission deviendra obligatoire pour les micro-entrepreneurs à partir du 1er septembre 2027.",
              "<strong style='color:#1E1C19;'>Prenez de l'avance :</strong> vos factures Caffein sont numérotées, "
              "archivées et contiennent déjà les nouvelles mentions (SIREN du client, nature de l'opération)."],
-            "Créer ma première facture", "/factures")
+            "Créer ma première facture", "/ventes/factures")
     if step == "help":
         return "Besoin d'aide pour démarrer ?", _brand_email(
             "Un coup de main ?",
@@ -199,7 +199,7 @@ def tva_alert_email(balance: float, threshold: float, period_label: str, deadlin
         [f"Sur la période <strong>{_e(period_label)}</strong>, ta TVA à reverser atteint <strong>{fmt_money(balance)}</strong> "
          f"(seuil d'alerte : {fmt_money(threshold)}).",
          f"Pense à mettre cette somme de côté : elle sera à payer avant le <strong>{_e(deadline)}</strong>."],
-        "Voir le suivi TVA", "/tva")
+        "Voir le suivi TVA", "/comptabilite/tva")
 
 
 def deadline_email(label: str, deadline: str, amount: float | None, path: str) -> tuple[str, str]:

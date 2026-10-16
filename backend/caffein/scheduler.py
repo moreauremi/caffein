@@ -12,7 +12,7 @@ import threading
 from datetime import datetime, timedelta
 
 from . import config
-from .jobs import JOBS, NEXT_RUNS, run_job
+from .jobs import JOBS, NEXT_RUNS, job_enabled, run_job
 
 log = logging.getLogger("caffein.scheduler")
 TICK_SECONDS = 5
@@ -49,6 +49,9 @@ class Scheduler(threading.Thread):
             now = datetime.now(config.TIMEZONE)
             for name, due in list(NEXT_RUNS.items()):
                 if now < due:
+                    continue
+                if not job_enabled(name):  # module désactivé : le script attend sa réactivation
+                    NEXT_RUNS[name] = next_run(JOBS[name].schedule, now)
                     continue
                 try:
                     result = run_job(name, trigger="schedule")

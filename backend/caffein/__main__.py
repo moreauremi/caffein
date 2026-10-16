@@ -14,6 +14,7 @@ Administration
     caffein backup [-o fichier.tar.gz]                      sauvegarde base + documents + clé
     caffein restore fichier.tar.gz [--force]                restaure une sauvegarde
     caffein seed --demo [--reset]                           données de démonstration
+    caffein modules [enable|disable <module>]               liste, active ou désactive un module
 
 Scripts d'automatisation
     caffein jobs                                            liste des scripts
@@ -41,7 +42,7 @@ def _ask_password(confirm: bool = True) -> str:
 def main(argv: list[str] | None = None) -> int:
     from . import config  # charge .env / CAFFEIN_ENV_FILE avant de lire les valeurs par défaut
 
-    parser = argparse.ArgumentParser(prog="caffein", description="Caffein — gestion libre pour freelances et TPE")
+    parser = argparse.ArgumentParser(prog="caffein", description="Caffein — l'ERP libre et modulaire des petites entreprises")
     sub = parser.add_subparsers(dest="command", required=True)
 
     serve = sub.add_parser("serve", help="Lancer le serveur web")
@@ -71,6 +72,10 @@ def main(argv: list[str] | None = None) -> int:
     seed = sub.add_parser("seed", help="Créer les données de démonstration")
     seed.add_argument("--demo", action="store_true", help="Jeu de démonstration complet")
     seed.add_argument("--reset", action="store_true", help="Effacer les données métier avant (les comptes sont conservés)")
+
+    modules = sub.add_parser("modules", help="Lister, activer ou désactiver les modules")
+    modules.add_argument("action", nargs="?", choices=("enable", "disable"))
+    modules.add_argument("module", nargs="?", help="clé du module (sales, stock, hr…)")
 
     sub.add_parser("jobs", help="Lister les scripts d'automatisation")
     run = sub.add_parser("run", help="Exécuter un script maintenant")
@@ -141,6 +146,25 @@ def main(argv: list[str] | None = None) -> int:
         from .backup import backup as do_backup
 
         print(f"Sauvegarde créée : {do_backup(args.output)}")
+        return 0
+
+    if args.command == "modules":
+        from .core import modules as registry
+        from .core.errors import Conflict, NotFound
+
+        if args.action:
+            if not args.module:
+                print("Indiquez le module : caffein modules enable stock", file=sys.stderr)
+                return 2
+            try:
+                registry.set_enabled(args.module, args.action == "enable")
+            except (Conflict, NotFound) as exc:
+                print(str(exc) or "Module inconnu.", file=sys.stderr)
+                return 1
+        for m in registry.describe():
+            state = "toujours actif" if m["core"] else ("actif" if m["enabled"] else "inactif")
+            deps = f"  (nécessite : {', '.join(m['depends'])})" if m["depends"] else ""
+            print(f"{m['key']:<12} {state:<15} {m['label'][0]}{deps}")
         return 0
 
     if args.command == "seed":

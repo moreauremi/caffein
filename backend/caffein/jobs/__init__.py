@@ -109,12 +109,20 @@ def get_run(run_id: int) -> dict:
     return row
 
 
-def list_runs(limit: int = 50, job_name: str | None = None) -> list[dict]:
+def list_runs(limit: int = 50, job_name: str | None = None, jobs: set[str] | None = None) -> list[dict]:
+    """Historique des exécutions ; `jobs` limite aux scripts que l'utilisateur peut voir."""
     sql = "SELECT * FROM job_runs"
     params: tuple = ()
+    where = []
     if job_name:
-        sql += " WHERE job = ?"
-        params = (job_name,)
+        where.append("job = ?")
+        params += (job_name,)
+    if jobs is not None:
+        names = sorted(jobs) or [""]
+        where.append(f"job IN ({', '.join('?' for _ in names)})")
+        params += tuple(names)
+    if where:
+        sql += " WHERE " + " AND ".join(where)
     sql += " ORDER BY started_at DESC, id DESC LIMIT ?"
     rows = db.fetch_all(sql, params + (limit,))
     for row in rows:
@@ -127,16 +135,35 @@ DISPLAY_ORDER = ["process_inbox", "generate_pdf", "send_invoice", "auto_reminder
                  "newsletter_notifications", "fiscal_alerts", "setup_drive"]
 
 
-def describe_jobs() -> list[dict]:
+def job_module(name: str) -> str | None:
+    """Module propriétaire d'un script (déclaré dans `Module.jobs`)."""
+    from ..core import modules as registry
+
+    return next((m.key for m in registry.load().values() if name in m.jobs), None)
+
+
+def job_enabled(name: str) -> bool:
+    """Un script appartient à un module : il ne tourne pas si ce module est désactivé."""
+    from ..core import modules as registry
+
+    module = job_module(name)
+    return module is None or registry.is_enabled(module)
+
+
+def describe_jobs(levels: dict[str, int] | None = None) -> list[dict]:
+    """Scripts visibles : ceux des modules actifs que l'utilisateur peut consulter (`levels`)."""
     out = []
     ordered = sorted(JOBS.values(), key=lambda s: DISPLAY_ORDER.index(s.name) if s.name in DISPLAY_ORDER else 99)
     for spec in ordered:
+        module = job_module(spec.name)
+        if not job_enabled(spec.name) or (levels is not None and module and levels.get(module, 0) < 1):
+            continue
         last = db.fetch_one("SELECT * FROM job_runs WHERE job = ? ORDER BY started_at DESC, id DESC LIMIT 1", (spec.name,))
         if last:
             last["details"] = db.loads(last["details"], {})
         nxt = NEXT_RUNS.get(spec.name)
         out.append({
-            "name": spec.name, "title": spec.title, "description": spec.description, "replaces": spec.replaces,
+            "name": spec.name, "module": module, "title": spec.title, "description": spec.description, "replaces": spec.replaces,
             "schedule": spec.schedule, "schedule_label": spec.schedule_label, "manual": spec.manual,
             "last_run": last, "last_check": LAST_CHECK.get(spec.name),
             "next_run": nxt.isoformat() if nxt and config.SCHEDULER_ENABLED else None,

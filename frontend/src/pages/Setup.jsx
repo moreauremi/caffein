@@ -5,12 +5,35 @@ import { AlertCircle, ArrowLeft, ArrowRight, Check, Rocket } from 'lucide-react'
 import AuthAside from '../components/AuthAside'
 import LanguageSwitch from '../components/LanguageSwitch'
 import Logo from '../components/Logo'
+import NamedIcon from '../components/NamedIcon'
 import { Segmented, Spinner, Toggle } from '../components/ui'
 import { useAuth } from '../context/AuthContext'
 import { useLanguage } from '../context/LanguageContext'
+import { useApi } from '../lib/useApi'
 import './auth.css'
 
 const ACTIVITIES = ['bnc', 'bnc_cipav', 'bic_services', 'bic_vente']
+const STEPS = ['company', 'modules', 'fiscal', 'admin']
+const TITLES = { company: 'setup.title_0', modules: 'setup.modules_title', fiscal: 'setup.title_1', admin: 'setup.title_2' }
+const LEADS = { company: 'setup.lead_0', modules: 'setup.modules_lead', fiscal: 'setup.lead_1', admin: 'setup.lead_2' }
+
+// Choix des modules : cocher un module coche ses dépendances, décocher un module décoche ceux qui en dépendent
+function toggleModule(selected, modules, key, on) {
+  const next = new Set(selected)
+  const byKey = Object.fromEntries(modules.map((m) => [m.key, m]))
+  const visit = (k, add) => {
+    if (add ? next.has(k) : !next.has(k)) return
+    if (add) {
+      next.add(k)
+      for (const dep of byKey[k]?.depends || []) visit(dep, true)
+    } else {
+      next.delete(k)
+      for (const m of modules) if (m.depends.includes(k)) visit(m.key, false)
+    }
+  }
+  visit(key, on)
+  return next
+}
 
 function Field({ id, label, children, full, hint }) {
   return (
@@ -24,7 +47,7 @@ function Field({ id, label, children, full, hint }) {
 
 // Assistant d'installation (premier lancement, comme l'installeur de GLPI)
 export default function Setup() {
-  const { t, language } = useLanguage()
+  const { t, pick, language } = useLanguage()
   const { loading, needsSetup, completeSetup } = useAuth()
   const navigate = useNavigate()
   const [step, setStep] = useState(0)
@@ -36,6 +59,12 @@ export default function Setup() {
   })
   const [admin, setAdmin] = useState({ full_name: '', email: '', password: '', confirm: '' })
   const [demoData, setDemoData] = useState(false)
+  const status = useApi('/api/setup/status')
+  const available = (status.data?.modules || []).filter((m) => !m.core)
+  const [chosen, setChosen] = useState(null)
+  const selected = chosen ?? new Set(available.filter((m) => m.default_enabled).map((m) => m.key))
+  const current = STEPS[step]
+  const last = STEPS.length - 1
 
   if (loading) return null
   if (!needsSetup) return <Navigate to="/" replace />
@@ -44,8 +73,8 @@ export default function Setup() {
   const setA = (k) => (e) => setAdmin((a) => ({ ...a, [k]: e.target.value }))
 
   function validate() {
-    if (step === 0 && !org.company.trim()) return t('setup.err_company')
-    if (step === 2) {
+    if (current === 'company' && !org.company.trim()) return t('setup.err_company')
+    if (current === 'admin') {
       if (!admin.full_name.trim() || !admin.email.includes('@')) return t('setup.err_admin')
       if (admin.password.length < 8) return t('setup.err_password')
       if (admin.password !== admin.confirm) return t('setup.err_confirm')
@@ -58,13 +87,14 @@ export default function Setup() {
     const problem = validate()
     setError(problem)
     if (problem) return
-    if (step < 2) return setStep(step + 1)
+    if (step < last) return setStep(step + 1)
     setBusy(true)
     try {
       await completeSetup({
         organization: { ...org, full_name: admin.full_name, email: org.email || admin.email },
         admin: { full_name: admin.full_name, email: admin.email, password: admin.password },
         demo_data: demoData,
+        modules: [...selected],
       })
       navigate('/', { replace: true })
     } catch (err) {
@@ -81,12 +111,12 @@ export default function Setup() {
         <div className="auth-top"><LanguageSwitch /></div>
         <form className="auth-card wide" onSubmit={next} noValidate>
           <div className="only-mobile" style={{ marginBottom: 20 }}><Logo size={30} /></div>
-          <div className="small muted">{t('setup.step', { n: step + 1 })}</div>
-          <h2 style={{ fontSize: 28, letterSpacing: '-0.03em', marginTop: 4 }}>{t(`setup.title_${step}`)}</h2>
-          <p className="muted" style={{ marginTop: 8 }}>{t(`setup.lead_${step}`)}</p>
-          <div className="auth-steps" aria-hidden="true">{[0, 1, 2].map((i) => <span key={i} className={i <= step ? 'done' : ''} />)}</div>
+          <div className="small muted">{t('setup.step', { n: step + 1, total: STEPS.length })}</div>
+          <h2 style={{ fontSize: 28, letterSpacing: '-0.03em', marginTop: 4 }}>{t(TITLES[current])}</h2>
+          <p className="muted" style={{ marginTop: 8 }}>{t(LEADS[current])}</p>
+          <div className="auth-steps" aria-hidden="true">{STEPS.map((name, i) => <span key={name} className={i <= step ? 'done' : ''} />)}</div>
 
-          {step === 0 && (
+          {current === 'company' && (
             <div className="form-grid">
               <Field id="s-company" label={`${t('settings.company')} *`} full>
                 <input id="s-company" className="input" value={org.company} onChange={setO('company')} autoFocus />
@@ -105,7 +135,23 @@ export default function Setup() {
             </div>
           )}
 
-          {step === 1 && (
+          {current === 'modules' && (
+            <div className="setup-modules">
+              {!status.data ? <Spinner /> : available.map((m) => (
+                <label key={m.key} className={`setup-module ${selected.has(m.key) ? 'on' : ''}`}>
+                  <input type="checkbox" checked={selected.has(m.key)}
+                    onChange={(e) => setChosen(toggleModule(selected, available, m.key, e.target.checked))} />
+                  <span className="module-icon"><NamedIcon name={m.icon} size={18} /></span>
+                  <span className="grow">
+                    <span className="setup-module-name">{pick(m.label)}</span>
+                    <span className="xsmall muted">{pick(m.description)}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+          )}
+
+          {current === 'fiscal' && (
             <div className="stack lg">
               <Field id="s-activity" label={t('settings.activity')} hint={t('settings.activity_hint')}>
                 <select id="s-activity" className="select" value={org.activity} onChange={setO('activity')}>
@@ -134,7 +180,7 @@ export default function Setup() {
             </div>
           )}
 
-          {step === 2 && (
+          {current === 'admin' && (
             <div className="stack lg">
               <div className="form-grid">
                 <Field id="s-name" label={`${t('settings.full_name')} *`} full>
@@ -169,8 +215,8 @@ export default function Setup() {
               </button>
             ) : <span />}
             <button className="btn primary lg" disabled={busy}>
-              {busy ? <Spinner /> : step < 2 ? <ArrowRight size={17} /> : <Rocket size={17} />}
-              {step < 2 ? t('setup.next') : t('setup.install')}
+              {busy ? <Spinner /> : step < last ? <ArrowRight size={17} /> : <Rocket size={17} />}
+              {step < last ? t('setup.next') : t('setup.install')}
             </button>
           </div>
           <p className="xsmall subtle row" style={{ marginTop: 22, gap: 6 }}><Check size={13} /> {t('setup.privacy')}</p>

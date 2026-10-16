@@ -27,7 +27,7 @@ function ChartTooltip({ active, payload, label, series, language }) {
   )
 }
 
-export function BarsChart({ data, xKey, series, height = 260, title }) {
+export function BarsChart({ data, xKey, series, height = 260, title, xLabel }) {
   const { t, language } = useLanguage()
   const [table, setTable] = useState(false)
   return (
@@ -46,7 +46,7 @@ export function BarsChart({ data, xKey, series, height = 260, title }) {
       {table ? (
         <div className="table-wrap">
           <table className="table" aria-label={title}>
-            <thead><tr><th>{t('chart.period')}</th>{series.map((s) => <th key={s.key} className="right">{s.label}</th>)}</tr></thead>
+            <thead><tr><th>{xLabel || t('chart.period')}</th>{series.map((s) => <th key={s.key} className="right">{s.label}</th>)}</tr></thead>
             <tbody>
               {data.map((row) => (
                 <tr key={row[xKey]}>

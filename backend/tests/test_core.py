@@ -4,7 +4,7 @@ from datetime import date
 from caffein import ai, crypto, fiscal, services
 from caffein.jobs import run_job
 from caffein.jobs.auto_reminders import choose_tone
-from caffein.utils import fmt_money, to_float
+from caffein.utils import cents, fmt_money, to_float
 
 
 def test_money_and_numbers():
@@ -14,6 +14,14 @@ def test_money_and_numbers():
     assert to_float("1.234,56") == 1234.56
     assert to_float("1,234.56") == 1234.56
     assert to_float("abc") is None
+
+
+def test_amounts_round_half_up_to_the_cent():
+    """Arrondi commercial des factures : la moitié d'un centime va au centime supérieur (round() irait au pair)."""
+    assert [cents(v) for v in (0.125, 2.675, 1.005, 0.1 + 0.2, -0.125, 97.5)] == [0.13, 2.68, 1.01, 0.3, -0.13, 97.5]
+    assert round(0.125, 2) == 0.12  # ce que l'arrondi commercial corrige
+    assert services.line_amount({"quantity": 0.5, "unit_price": 0.25}) == 0.13
+    assert services.compute_totals([{"quantity": 1, "unit_price": 0.625}], False, 0.2) == (0.63, 0.13, 0.76)
 
 
 def test_encryption_roundtrip():
