@@ -43,9 +43,9 @@ Ajouter un module ne touche pas aux autres : voir [docs/modules.md](docs/modules
 - **Droits par module.** Activez ou désactivez chaque module pour toute l'entreprise ; donnez à chacun un rôle
   (Commercial, Acheteur, Comptable…) qui fixe son niveau par module (aucun, lecture, écriture, gestion), avec des
   dérogations personnelles. Un module sans droit n'apparaît pas ; le serveur vérifie chaque accès.
-- **Des écrans cohérents partout.** Chaque liste a sa recherche, ses filtres, son tri et son export tableur ; chaque fiche
-  ses lignes, ses actions (confirmer, livrer, réceptionner, valider un congé…) et ses totaux, recalculés par le serveur
-  pendant la saisie.
+- **Des écrans cohérents partout.** Chaque liste a sa recherche, ses filtres, son tri et son export tableur, et une vue
+  « Tableau » par statut (pipeline commercial, ordres de fabrication, absences…) ; chaque fiche ses lignes, ses actions
+  (confirmer, livrer, réceptionner, valider un congé…) et ses totaux, recalculés par le serveur pendant la saisie.
 - **Factures et devis en une phrase.** « Mission logo pour Jean Martin, 800 €, livraison le 15 » suffit pour créer un brouillon
   (client, lignes, dates). PDF A4 avec les mentions légales (EI, SIRET, TVA ou art. 293 B, pénalités de retard, SIREN du client),
   numérotation continue, transformation devis → facture, envoi par email et page de consultation pour le client avec l'IBAN.
@@ -66,6 +66,8 @@ Ajouter un module ne touche pas aux autres : voir [docs/modules.md](docs/modules
 
 | | |
 |---|---|
+| ![Paramètres : activation des modules](docs/screenshots/modules.png) | ![Rôles et droits par module](docs/screenshots/droits.png) |
+| ![CRM : opportunités en vue Tableau](docs/screenshots/tableau.png) | ![Ordre de fabrication : besoins, manques et coûts](docs/screenshots/fabrication.png) |
 | ![Factures et devis](docs/screenshots/factures.png) | ![Tableau de bord URSSAF](docs/screenshots/urssaf.png) |
 | ![Suivi de la TVA, thème sombre](docs/screenshots/tva-sombre.png) | ![Automatisations](docs/screenshots/automatisations.png) |
 

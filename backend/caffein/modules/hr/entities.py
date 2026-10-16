@@ -15,7 +15,7 @@ from ... import db, services
 from ...core import modules as registry
 from ...core.entities import Action, Child, Entity, Field
 from ...core.errors import Conflict, Forbidden
-from ...core.modules import MANAGE
+from ...core.modules import MANAGE, WRITE
 from ...core.permissions import level_for
 from ...utils import cents, fmt_date, fmt_money, parse_date, today
 from .workdays import working_days
@@ -458,8 +458,12 @@ def _pay(row: dict, payload: dict, user: dict) -> str:
     paid_on = _today()
     total, vat = row["total"], row["total_vat"]
     message = f"Note de frais {row['code']} remboursée ({fmt_money(total)})."
-    # La Comptabilité, si elle est active, reçoit la dépense comme justificatif (TVA déductible)
+    # La Comptabilité, si elle est active, reçoit la dépense comme justificatif (TVA déductible) : il faut donc pouvoir
+    # y écrire, la TVA déductible entrant dans la déclaration (les appels internes, sans utilisateur, passent)
     if registry.is_enabled("accounting"):
+        if user.get("id") is not None and level_for(user, "accounting") < WRITE:
+            raise Forbidden("Rembourser une note de frais l'ajoute aux justificatifs de la Comptabilité : il faut le droit "
+                            "d'écriture sur la Comptabilité.")
         employee = db.fetch_one("SELECT full_name FROM hr_employees WHERE id = ?", (row["employee_id"],))
         services.add_document({
             "date": paid_on, "fournisseur": f"NOTE DE FRAIS {((employee or {}).get('full_name') or '').upper()}".strip(),

@@ -654,3 +654,17 @@ def test_services_for_other_modules(client):
     assert hr.is_absent(employee["id"]) and employee["id"] in hr.absent_employee_ids(today().isoformat())
     assert not hr.is_absent(employee["id"], today() + timedelta(days=30))
     assert hr.working_days("2026-05-11", "2026-05-15") == 4
+
+
+def test_paying_needs_accounting_rights(client):
+    """Rembourser une note ajoute un justificatif (TVA déductible) à la Comptabilité : il faut pouvoir y écrire."""
+    submitted = client.get(f"{BASE}/expenses", params={"f_status": "submitted"}).json()["rows"][0]
+    client.post(f"{BASE}/expenses/{submitted['id']}/actions/approve")
+    make_member("rh-sans-compta@test.local", "hr")
+    manager = login_as("rh-sans-compta@test.local")
+    res = manager.post(f"{BASE}/expenses/{submitted['id']}/actions/pay")
+    assert res.status_code == 403 and "Comptabilité" in res.json()["detail"]
+    assert client.get(f"{BASE}/expenses/{submitted['id']}").json()["status"] == "approved"
+    make_member("rh-et-compta@test.local", "hr", {"accounting": 2})
+    paid = login_as("rh-et-compta@test.local").post(f"{BASE}/expenses/{submitted['id']}/actions/pay")
+    assert paid.status_code == 200 and paid.json()["row"]["status"] == "paid"
