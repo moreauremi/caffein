@@ -572,7 +572,7 @@ img, svg { display: block; }
 /* Vue en colonnes (une par statut) : chaque colonne défile avec la page, le tableau défile seul en largeur */
 .board { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(200px, 1fr); gap: 14px; overflow-x: auto; align-items: start; padding-bottom: 6px; }
 .board-col { background: var(--surface-2); border: 1px solid var(--border); border-radius: 14px; padding: 10px; min-width: 0; }
-.board-col-head { display: flex; align-items: center; gap: 8px; padding: 2px 4px 10px; }
+.board-col-head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding: 2px 4px 10px; }
 .board-col-count { min-width: 22px; padding: 1px 7px; border-radius: 999px; background: var(--surface); border: 1px solid var(--border); font-size: 12px; text-align: center; color: var(--muted); }
 .board-col-amount { margin-left: auto; color: var(--fg); white-space: nowrap; }
 .board-cards { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }

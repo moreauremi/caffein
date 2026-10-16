@@ -589,7 +589,7 @@ def test_module_kpis_in_views(client):
     view = client.post("/api/dashboards/render", json={"spec": {"widgets": [{"source": "kpi", "params": {"metric": "stock.to_reorder"}}]}}).json()
     data = view["widgets"][0]["data"]
     home = {k["key"]: k for k in client.get("/api/home").json()["kpis"]}
-    assert data["label"][0] == "À réapprovisionner" and data["value"] == home["stock.to_reorder"]["value"] and data["alert"]
+    assert data["label"][0] == "Articles à réapprovisionner" and data["value"] == home["stock.to_reorder"]["value"] and data["alert"]
     composed = client.post("/api/dashboards/compose", json={"text": "montre-moi les articles à réapprovisionner"}).json()
     assert [w["params"].get("metric") for w in composed["view"]["widgets"]] == ["stock.to_reorder"]
     assert "stock.to_reorder" in client.get("/api/dashboards").json()["catalog"][0]["description"]

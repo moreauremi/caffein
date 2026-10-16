@@ -46,7 +46,7 @@ MODULE = Module(
     ],
     events=EVENTS,
     kpis=[
-        Kpi("to_reorder", ("À réapprovisionner", "To reorder"), _to_reorder, icon="PackageMinus",
+        Kpi("to_reorder", ("Articles à réapprovisionner", "Items to reorder"), _to_reorder, icon="PackageMinus",
             foot=("article(s) sous le stock minimum", "item(s) below minimum stock"), path="/logistique/stock?f_status=reorder",
             alert=lambda d: (d.get("value") or 0) > 0),
         Kpi("stock_value", ("Valeur du stock", "Stock value"), _stock_value, unit="money", icon="Warehouse",
