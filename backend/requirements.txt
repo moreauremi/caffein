@@ -1,7 +1,7 @@
 # Dépendances d'exécution de Caffein (Python ≥ 3.10)
 fastapi>=0.115
 uvicorn[standard]>=0.30
-python-multipart>=0.0.9
+python-multipart>=0.0.32
 python-dotenv>=1.0
 anthropic>=1.0
 pypdf>=5.0
