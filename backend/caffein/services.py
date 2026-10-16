@@ -101,6 +101,12 @@ def delete_client(client_id: int) -> None:
     used = db.fetch_one("SELECT COUNT(*) AS n FROM invoices WHERE client_id = ? AND status != 'draft'", (client_id,))
     if used and used["n"]:
         raise Conflict("Ce client a des factures émises : il ne peut pas être supprimé.")
+    from .core import entities  # fiches des autres modules (prospects, opportunités, projets…) sans clé SQL
+
+    others = entities.usages(entities.get("sales.clients"), client_id)
+    if others:
+        detail = ", ".join(f"{label[0].lower()} : {n}" for label, n in others)
+        raise Conflict(f"Suppression impossible : ce client est utilisé ailleurs ({detail}).")
     try:
         db.execute("DELETE FROM clients WHERE id = ?", (client_id,))
     except sqlite3.IntegrityError as exc:  # commandes clients ou autres fiches liées

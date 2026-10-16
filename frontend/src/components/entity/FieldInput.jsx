@@ -43,7 +43,10 @@ export default function FieldInput({ field, value, label, onChange, entityKey, d
       return (
         <select {...common} className={`select ${cls}`} value={value ?? ''} onChange={(e) => onChange(e.target.value === '' ? null : e.target.value)}>
           {!field.required || value == null ? <option value="">{field.required ? t('entity.choose') : '—'}</option> : null}
-          {(field.choices || []).map((c) => <option key={String(c.value)} value={c.value}>{pick(c.label)}</option>)}
+          {(field.choices || [])
+            // une valeur posée par un bouton de la fiche (gagnée, perdue…) ne se choisit pas ici
+            .filter((c) => !(field.action_choices || []).includes(c.value) || String(c.value) === String(value))
+            .map((c) => <option key={String(c.value)} value={c.value}>{pick(c.label)}</option>)}
         </select>
       )
     case 'ref':

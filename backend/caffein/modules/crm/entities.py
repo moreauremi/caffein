@@ -424,7 +424,7 @@ OPPORTUNITIES = Entity(
         Field("client_id", ("Client", "Customer"), type="ref", ref="sales.clients", list=True, filter=True),
         Field("amount", ("Montant HT", "Amount excl. VAT"), type="money", min=0, max=1_000_000_000, list=True),
         Field("stage", ("Étape", "Stage"), type="enum", choices=STAGES, default="prospecting", required=True, list=True,
-              filter=True, help=("Gagnée ou perdue : utilisez les boutons de la fiche.", "Won or lost: use the record's buttons.")),
+              filter=True, action_choices=CLOSED_STAGES, help=("Gagnée ou perdue : utilisez les boutons de la fiche.", "Won or lost: use the record's buttons.")),
         Field("probability", ("Probabilité", "Probability"), type="percent", min=0, max=100,
               help=("Vide, ou étape changée sans nouvelle probabilité : celle de l'étape (découverte 10 %, "
                     "qualification 25 %, proposition 50 %, négociation 75 %).",

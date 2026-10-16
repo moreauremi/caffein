@@ -42,6 +42,7 @@ class Field:
     # Liste de choix (enum, ou valeurs numériques permises) : (valeur, libellé) ou (valeur, libellé, ton)
     # ; le ton colore le badge dans les listes : good | warn | bad | info | accent | outline.
     choices: tuple[tuple, ...] = ()
+    action_choices: tuple = ()                    # valeurs posées seulement par une action (gagnée…) : hors formulaire
     ref: str | None = None                        # « technical.articles » pour un champ de type ref
     fill: dict[str, str] | None = None            # ref : champs recopiés de la fiche choisie {champ: champ_de_la_fiche}
     default: Any = None                           # valeur, ou fonction sans argument (date du jour…)
@@ -726,6 +727,11 @@ def save_row(entity: Entity, data: dict, level: int, row_id: int | None = None) 
     _check_unique(entity, values, row_id)
     if entity.validate:
         entity.validate({**(existing or {}), **values, **children}, existing)
+    for fld in fields:  # une valeur réservée aux actions ne se pose pas par le formulaire
+        value = values.get(fld.name)
+        if fld.action_choices and value in fld.action_choices and (existing or {}).get(fld.name) != value:
+            label = next((c[1][0] for c in fld.choices if c[0] == value), value)
+            raise ValueError(f"{fld.label[0]} : « {label} » se pose avec le bouton de la fiche.")
     columns = _table_columns(entity.table)
     now = db.now_iso()
     if "updated_at" in columns:
@@ -901,6 +907,8 @@ def _field_meta(fld: Field) -> dict:
             "filter": fld.filter, "sortable": not fld.computed, "width": fld.width}
     if fld.choices:
         meta["choices"] = [{"value": c[0], "label": c[1], **({"tone": c[2]} if len(c) > 2 else {})} for c in fld.choices]
+    if fld.action_choices:
+        meta["action_choices"] = list(fld.action_choices)
     if fld.ref:
         meta["ref"] = fld.ref
     if fld.fill:

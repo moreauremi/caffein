@@ -364,6 +364,23 @@ def test_client_delete_rules(client):
     assert client.delete(f"/api/data/sales/orders/{order['id']}").status_code == 204
     assert client.delete(f"/api/data/sales/clients/{new['id']}").status_code == 204
     assert client.post("/api/data/sales/clients", json={"name": "X", "email": "pas-un-email"}).status_code == 400
+    # l'ancienne route des factures vérifie aussi les autres modules (pas de clé SQL entre modules)
+    other = client.post("/api/data/sales/clients", json={"name": "Client du CRM"}).json()
+    deal = client.post("/api/data/crm/opportunities", json={"title": "Signalétique", "client_id": other["id"]}).json()
+    res = client.delete(f"/api/clients/{other['id']}")
+    assert res.status_code == 409 and "opportunités : 1" in res.json()["detail"]
+    client.delete(f"/api/data/crm/opportunities/{deal['id']}")
+    assert client.delete(f"/api/clients/{other['id']}").status_code == 204
+
+
+def test_action_only_choices(client):
+    """Une valeur posée par un bouton (opportunité gagnée ou perdue) n'est pas proposée dans le formulaire."""
+    stage = next(f for f in client.get("/api/meta").json()["entities"]["crm.opportunities"]["fields"] if f["name"] == "stage")
+    assert stage["action_choices"] == ["won", "lost"] and "won" in [c["value"] for c in stage["choices"]]
+    deal = client.post("/api/data/crm/opportunities", json={"title": "Catalogue", "client_id": _client_id()}).json()
+    res = client.put(f"/api/data/crm/opportunities/{deal['id']}", json={"stage": "won"})
+    assert res.status_code == 400 and "Étape" in res.json()["detail"]
+    assert client.put(f"/api/data/crm/opportunities/{deal['id']}", json={"stage": "proposal"}).json()["stage"] == "proposal"
 
 
 def test_options(client):
