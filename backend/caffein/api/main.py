@@ -76,6 +76,9 @@ async def security_middleware(request: Request, call_next):
             return JSONResponse({"detail": "Origine de la requête refusée."}, status_code=403)
     response = await call_next(request)
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    if request.url.path.startswith("/api/") and response.headers.get("content-type", "") != "application/pdf":
+        # rien ne s'exécute dans une réponse de l'API (un fichier déposé ne peut pas lancer de script)
+        response.headers.setdefault("Content-Security-Policy", "default-src 'none'; frame-ancestors 'self'")
     response.headers.setdefault("Referrer-Policy", "same-origin")
     response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
     return response

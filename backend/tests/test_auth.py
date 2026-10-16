@@ -33,6 +33,21 @@ def test_demo_login_disabled_by_default(anon):
     assert anon.post("/api/auth/demo").status_code == 404
 
 
+def test_demo_account_is_closed_outside_demo_mode(anon, monkeypatch):
+    """Le compte de démonstration est administrateur : hors du mode démo, il ne s'ouvre plus, même si un visiteur lui
+    a donné un mot de passe, et ses sessions ouvertes ne valent plus rien."""
+    from caffein import config
+
+    monkeypatch.setattr(config, "DEMO_MODE", True)
+    visitor = anon.post("/api/auth/demo").json()["user"]
+    assert anon.post(f"/api/users/{visitor['id']}/password", json={"password": "visiteur-2026"}).status_code == 200
+    monkeypatch.setattr(config, "DEMO_MODE", False)
+    assert anon.get("/api/auth/me").status_code == 401
+    res = anon.post("/api/auth/login", json={"email": visitor["email"], "password": "visiteur-2026"})
+    assert res.status_code == 401
+    auth._failures.clear()
+
+
 def test_csrf_origin_check(client):
     res = client.put("/api/profile", json={"company": "Pirate"}, headers={"Origin": "https://evil.example"})
     assert res.status_code == 403

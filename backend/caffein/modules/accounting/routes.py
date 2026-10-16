@@ -78,7 +78,22 @@ def document_file(doc_id: int) -> FileResponse:
     doc = services.get_document(doc_id)
     if not doc["has_file"]:
         raise services.NotFound("Fichier introuvable")
-    return FileResponse(doc["file_path"], filename=Path(doc["file_path"]).name, content_disposition_type="inline")
+    return _file_response(Path(doc["file_path"]))
+
+
+# Affichés dans le navigateur : PDF et images seulement. Tout autre fichier (HTML, SVG… déposé ou mis de côté) est
+# téléchargé, jamais affiché : servi depuis l'adresse de Caffein, il pourrait sinon exécuter un script avec la session
+# de la personne qui l'ouvre.
+INLINE_TYPES = {".pdf": "application/pdf", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+                ".webp": "image/webp", ".gif": "image/gif"}
+
+
+def _file_response(path: Path) -> FileResponse:
+    media = INLINE_TYPES.get(path.suffix.lower())
+    if media:
+        return FileResponse(path, media_type=media, filename=path.name, content_disposition_type="inline")
+    return FileResponse(path, media_type="application/octet-stream", filename=path.name,
+                        content_disposition_type="attachment")
 
 
 # ── Dossiers de classement ───────────────────────────────────────────────
@@ -109,4 +124,4 @@ def folder_file(key: str, path: str) -> FileResponse:
     target = (root / path).resolve()
     if root not in target.parents or not target.is_file():
         raise services.NotFound("Fichier introuvable")
-    return FileResponse(target, filename=target.name, content_disposition_type="inline")
+    return _file_response(target)

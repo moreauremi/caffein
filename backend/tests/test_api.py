@@ -52,6 +52,23 @@ def test_quote_conversion(client):
     assert client.get(f"/api/invoices/{accepted['id']}").json()["status"] == "invoiced"
 
 
+def test_uploaded_files_never_run_in_the_app(client):
+    """Un fichier HTML ou SVG déposé (mis de côté) se télécharge : servi en ligne depuis l'adresse de Caffein, son script
+    s'exécuterait avec la session de la personne qui l'ouvre."""
+    script = b"<script>fetch('/api/users',{method:'POST'})</script>"
+    for name, kind in (("facture.html", "text/html"), ("logo.svg", "image/svg+xml")):
+        client.post("/api/documents/upload", files={"files": (name, script, kind)})
+        res = client.get("/api/folders/ne_pas_trier/file", params={"path": name})
+        assert res.status_code == 200 and res.headers["content-type"] == "application/octet-stream"
+        assert res.headers["content-disposition"].startswith("attachment")
+        assert "default-src 'none'" in res.headers["content-security-policy"]
+    # un PDF ou une image s'affiche toujours dans le navigateur
+    doc = next(d for d in client.get("/api/documents").json() if d["has_file"])
+    shown = client.get(f"/api/documents/{doc['id']}/file")
+    assert shown.headers["content-disposition"].startswith("inline")
+    assert client.get("/api/home").headers["content-security-policy"] == "default-src 'none'; frame-ancestors 'self'"
+
+
 def test_folder_traversal_is_blocked(client):
     assert client.get("/api/folders/recues/file", params={"path": "../../../caffein.db"}).status_code == 404
 

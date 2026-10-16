@@ -198,8 +198,8 @@ def user_from_token(token: str | None) -> dict | None:
     row = db.fetch_one(
         """SELECT u.*, s.expires_at, s.last_seen_at FROM sessions s JOIN users u ON u.id = s.user_id
            WHERE s.token_hash = ?""", (_token_hash(token),))
-    if not row or not row["active"]:
-        return None
+    if not row or not row["active"] or (row["is_demo"] and not config.DEMO_MODE):
+        return None  # le compte de démonstration ne sert plus hors du mode démo
     now = datetime.now(config.TIMEZONE)
     if datetime.fromisoformat(row["expires_at"]) < now:
         db.execute("DELETE FROM sessions WHERE token_hash = ?", (_token_hash(token),))
@@ -249,7 +249,8 @@ def authenticate(email: str, password: str, ip: str = "") -> dict:
     row = get_user_by_email(email)
     # vérification même si le compte n'existe pas (temps de réponse constant)
     valid = verify_password(password or "", row["password_hash"] if row else hash_password("leurre-temps-constant"))
-    if not row or not valid or not row["active"]:
+    # hors du mode démo, le compte de démonstration (administrateur) ne s'ouvre plus, même avec un mot de passe
+    if not row or not valid or not row["active"] or (row["is_demo"] and not config.DEMO_MODE):
         _record_failure(key)
         raise AuthError("Email ou mot de passe incorrect.")
     with _failures_lock:
