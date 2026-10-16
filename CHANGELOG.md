@@ -55,6 +55,17 @@ s'activent et se règlent par utilisateur. Voir `docs/modules.md`.
 - Une commande annulée peut être supprimée (la règle du module décide, même si la fiche est verrouillée).
 - Une case oui/non envoyée vide garde sa valeur au lieu de faire échouer l'enregistrement.
 - Deux réceptions simultanées du même document ne comptent plus deux fois le stock.
+- Un ordre de fabrication terminé garde les coûts du jour de sa fin (ils ne suivent plus les prix).
+- Un client utilisé par un autre module (prospect, opportunité, projet…) ne peut plus être supprimé depuis l'écran des
+  factures.
+
+### Sécurité
+- Un fichier HTML ou SVG déposé dans les justificatifs n'est plus affiché depuis l'adresse de Caffein (il pouvait
+  exécuter un script avec la session de la personne qui l'ouvrait) : seuls les PDF et les images s'affichent, le reste
+  se télécharge, et les réponses de l'API portent une politique de sécurité (CSP) qui n'exécute rien.
+- Hors du mode démo, le compte de démonstration ne s'ouvre plus, même si un visiteur lui a donné un mot de passe.
+- Rembourser une note de frais, qui ajoute un justificatif de TVA déductible, demande le droit d'écriture sur la
+  Comptabilité.
 
 ## [2.0.0] — 2026-10-07
 
