@@ -16,13 +16,16 @@
 // le même conteneur MP4 : elle se lit dans Chrome, Firefox et VLC, pas dans QuickTime.
 //
 // Timeline
-//   0 – 4 s    Intro : le logo lettre par lettre, « L'ERP libre et modulaire des petites entreprises »
-//   4 – 9 s    Les trucs chiants : les tâches tombent et s'empilent
-//   9 – 15 s   L'IA s'en charge : un devis en une phrase
-//   15 – 21 s  Justificatifs classés, relances rédigées, Mes vues
-//   21 – 26 s  Et sans IA ? On coupe l'IA, tout marche pareil
-//   26 – 31 s  100 % libre : git clone, docker compose up, 13 modules
-//   31 – 35 s  Outro
+//   0 – 4 s    Intro : un point tombe, s'étire, le logo en jaillit ; plongée dans le point du « i »
+//   4 – 9 s    Les trucs chiants tombent et s'empilent… puis sont aspirés par le noyau de l'IA
+//   9 – 15 s   Le noyau devient la barre de saisie : un devis en une phrase
+//   15 – 21 s  Le devis se replie en panneau : justificatifs, relances, Mes vues
+//   21 – 26 s  Les panneaux fusionnent en interrupteur : on coupe l'IA, tout marche pareil
+//   26 – 31 s  Panoramique éclair : 100 % libre, git clone, 13 modules
+//   31 – 35 s  La pastille AGPL envahit l'écran : outro
+//
+// Pas de rideau entre les scènes : ce sont les éléments qui se transforment d'une scène à l'autre, avec des
+// accélérations exponentielles, des ralentis et du flou de vitesse.
 
 import { useEffect, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
@@ -75,6 +78,10 @@ const eBounce = (x) => {
   if (x < 2.5 / d) return n * (x -= 2.25 / d) * x + 0.9375
   return n * (x -= 2.625 / d) * x + 0.984375
 }
+const eInExpo = (x) => (x <= 0 ? 0 : x >= 1 ? 1 : Math.pow(2, 10 * x - 10))
+const eOutExpo = (x) => (x >= 1 ? 1 : x <= 0 ? 0 : 1 - Math.pow(2, -10 * x))
+const eInOutExpo = (x) => (x <= 0 ? 0 : x >= 1 ? 1 : x < 0.5 ? Math.pow(2, 20 * x - 10) / 2 : (2 - Math.pow(2, -20 * x + 10)) / 2)
+const lerpRect = (a, b, k) => a.map((v, i) => lerp(v, b[i], k))
 const typed = (str, t, start, cps = 28) => str.slice(0, Math.max(0, Math.floor((t - start) * cps)))
 const typingDone = (str, t, start, cps = 28) => t >= start + str.length / cps
 
@@ -88,6 +95,21 @@ const pop = (t, start, dur = 0.5, extra = '') => {
   const p = prog(t, start, dur)
   return { opacity: clamp(p * 3), transform: `${extra} scale(${eBack(p)})` }
 }
+// Sortie : accélère (exponentielle) avec flou de vitesse. Entrée : arrive vite puis ralentit longuement.
+const leave = (t, start, dur = 0.45, { x = 0, y = 0, s = 1, r = 0, blur = 10 } = {}) => {
+  const k = eInExpo(prog(t, start, dur))
+  if (k <= 0) return {}
+  return { opacity: 1 - eInExpo(prog(t, start + dur * 0.4, dur * 0.6)),
+    transform: `translate(${x * k}px, ${y * k}px) scale(${lerp(1, s, k)}) rotate(${r * k}deg)`, filter: `blur(${k * blur}px)` }
+}
+const enter = (t, start, dur = 0.6, { x = 0, y = 0, s = 1, r = 0, blur = 10 } = {}) => {
+  const k = eOutExpo(prog(t, start, dur))
+  if (k >= 1) return {}
+  return { opacity: clamp(prog(t, start, dur * 0.3)),
+    transform: `translate(${x * (1 - k)}px, ${y * (1 - k)}px) scale(${lerp(s, 1, k)}) rotate(${r * (1 - k)}deg)`, filter: `blur(${(1 - k) * blur}px)` }
+}
+// Coup de caméra : zoom bref et sec, puis retour souple
+const punch = (t, at, amp = 0.035) => amp * eOutExpo(prog(t, at, 0.12)) * (1 - eInOut(prog(t, at + 0.12, 0.6)))
 const euro = (v) =>
   v.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €'
 const abs = (x, y, extra = {}) => ({ position: 'absolute', left: x, top: y, ...extra })
@@ -133,15 +155,27 @@ const LOGO_LETTERS = [
   ['M1576.7 100.0L1569.3 94.0L1561.3 89.0L1560.7 89.0L1553.3 85.7L1551.3 85.3L1544.7 83.0L1541 82.7L1538.3 81.7L1533.7 81.3L1533.3 81.0L1529.3 80.7L1529 80.3L1519.7 80.3L1519.3 80.0L1508.7 80.3L1508.3 80.7L1506 80.7L1503.3 81.3L1497.3 81.7L1494.7 82.7L1492 83.0L1489.7 84.0L1488.3 84.0L1487.3 84.7L1481.7 86.3L1479.3 87.7L1475.7 89.0L1474.3 90.0L1473 90.3L1467.3 93.7L1460.7 98.7L1454.3 105.0L1450.7 109.7L1449.3 112.0L1448.3 113.0L1447.7 113.0L1447 111.7L1447 107.7L1446.7 107.3L1446.7 100.7L1446.3 100.3L1446.3 94.0L1446 93.7L1445.7 84.7L1444.7 83.0L1407.3 83.0L1406.7 83.7L1406.7 283.0L1407 283.3L1450 283.3L1450.3 283.0L1450.3 161.0L1451.3 157.0L1451.3 155.0L1452.3 152.3L1452.7 150.0L1455.3 143.3L1460.7 135.0L1464.3 131.0L1471.3 125.3L1475.7 122.7L1476.3 122.7L1480.3 120.3L1483 119.7L1484 119.0L1493.3 116.7L1502.3 116.0L1502.7 115.7L1510.7 115.7L1511 116.0L1516.7 116.3L1517 116.7L1520.7 117.0L1525.3 118.3L1526.3 119.0L1527.3 119.0L1534.7 122.7L1540.3 126.7L1544 130.3L1549 137.0L1549 137.7L1551.3 141.7L1551.7 143.3L1552.7 145.0L1553 147.0L1554 149.0L1554.3 152.0L1555 153.3L1555 155.0L1555.3 155.3L1555.3 158.3L1555.7 158.7L1556 164.0L1556.3 164.3L1556.3 283.0L1556.7 283.3L1599.7 283.3L1600 282.7L1600 164.7L1599.7 164.3L1599.7 157.7L1599.3 157.3L1599 151.7L1598.7 151.3L1598.7 147.3L1597.7 144.0L1597.3 140.0L1596.3 137.3L1596 134.7L1595.3 133.7L1595 131.0L1591.3 121.3L1590.3 120.0L1590.3 119.3L1588 114.7L1584.3 109.0L1579.3 102.7Z', 1503.5],
 ]
 
-// Mot-symbole animé : chaque lettre tombe à sa place avec un léger rebond.
-function Wordmark({ t, start, width, color = C.fg, step = 0.09 }) {
+// Mot-symbole animé. « drop » : chaque lettre tombe à sa place avec un rebond. « burst » : les lettres jaillissent
+// du centre vers l'extérieur, vite puis lentement.
+const LOGO_ORDER = LOGO_LETTERS.map(([, cx], i) => [Math.abs(cx - LOGO_W / 2), i]).sort((a, b) => a[0] - b[0]).map(([, i]) => i)
+
+function Wordmark({ t, start, width, color = C.fg, step = 0.09, mode = 'drop' }) {
   return (
     <svg width={width} height={(width * LOGO_H) / LOGO_W} viewBox={`0 0 ${LOGO_W} ${LOGO_H}`} style={{ display: 'block', overflow: 'visible' }}>
       {LOGO_LETTERS.map(([d, cx], i) => {
-        const p = prog(t, start + i * step, 0.55)
+        let transform
+        let opacity
+        if (mode === 'burst') {
+          const k = eOutExpo(prog(t, start + LOGO_ORDER.indexOf(i) * 0.045, 0.7))
+          opacity = clamp(k * 3)
+          transform = `translate(${(1 - k) * (LOGO_W / 2 - cx) * 0.8} ${(1 - k) * 40}) translate(${cx} 190) scale(${lerp(0.15, 1, k)}) translate(${-cx} -190)`
+        } else {
+          const p = prog(t, start + i * step, 0.55)
+          opacity = clamp(p * 2.5)
+          transform = `translate(0 ${(1 - eBack(p)) * -170}) rotate(${(1 - p) * -16} ${cx} ${LOGO_H / 2})`
+        }
         return (
-          <g key={i} opacity={clamp(p * 2.5)}
-            transform={`translate(0 ${(1 - eBack(p)) * -170}) rotate(${(1 - p) * -16} ${cx} ${LOGO_H / 2})`}>
+          <g key={i} opacity={opacity} transform={transform}>
             <path d={d} fill={color} fillRule="evenodd" />
           </g>
         )
@@ -183,8 +217,10 @@ function Bean({ size, color }) {
   )
 }
 
+const OUTRO_AT = 31.2
+
 function Background({ t }) {
-  const outro = t >= 31
+  const outro = t >= OUTRO_AT
   return (
     <div style={{ position: 'absolute', inset: 0, background: outro ? C.accent : C.bg, overflow: 'hidden' }}>
       <div style={{
@@ -213,33 +249,43 @@ function Background({ t }) {
   )
 }
 
-// Rideau orange qui balaie l'écran à chaque changement de scène
-const CUTS = [4, 9, 15, 21, 26, 31]
-function Wipes({ t }) {
-  return CUTS.map((cut) => {
-    const w = prog(t, cut - 0.45, 0.9)
-    if (w <= 0 || w >= 1) return null
-    const x = lerp(-175, 115, eInOut(w))
-    const x2 = lerp(-185, 125, eInOut(clamp(w * 1.08 - 0.05)))
-    return (
-      <div key={cut} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
-        <div style={{ position: 'absolute', top: -200, bottom: -200, width: '170%', left: `${x2}%`,
-          background: C.dark, transform: 'skewX(-14deg)' }} />
-        <div style={{ position: 'absolute', top: -200, bottom: -200, width: '160%', left: `${x}%`,
-          background: C.accent, transform: 'skewX(-14deg)' }} />
-      </div>
-    )
-  })
-}
+// Repères de la timeline (contrôles) : les moments où une scène se transforme en la suivante
+const BEATS = [4.1, 9.3, 15.2, 21, 26.1, OUTRO_AT]
 
-function Scene({ t, from, to, zoom = 0.035, children }) {
+// Une scène : visible sur [from, to), avec une caméra qui respire (poussée lente, nulle aux bords pour que les
+// éléments transformés d'une scène à l'autre restent alignés) et des coups de zoom sur les temps forts.
+function Scene({ t, from, to, drift = 0.03, punches = [], origin = '50% 45%', children }) {
   if (t < from || t >= to) return null
   const k = (t - from) / (to - from)
+  const zoom = 1 + drift * Math.sin(k * Math.PI) + punches.reduce((sum, at) => sum + punch(t, at), 0)
   return (
-    <div style={{ position: 'absolute', inset: 0, transform: `scale(${1 + zoom * k})`, transformOrigin: '50% 45%' }}>
+    <div style={{ position: 'absolute', inset: 0, transform: `scale(${zoom})`, transformOrigin: origin }}>
       {children}
     </div>
   )
+}
+
+const Layer = ({ style, children }) => <div style={{ position: 'absolute', inset: 0, ...style }}>{children}</div>
+
+// Typographie cinétique : chaque mot monte de derrière un masque, vite puis lentement.
+// parts : [["texte", style?], …] ; "\n" force un retour à la ligne.
+function Kinetic({ t, start, parts, stagger = 0.055, dur = 0.75 }) {
+  let n = 0
+  return parts.flatMap(([text, style], pi) => {
+    if (text === '\n') return [<br key={`br${pi}`} />]
+    return text.split(' ').filter(Boolean).map((word, wi) => {
+      const k = eOutExpo(prog(t, start + n++ * stagger, dur))
+      return (
+        <span key={`${pi}-${wi}`} style={{ display: 'inline-block', overflow: 'hidden', verticalAlign: 'top',
+          padding: '0 0.08em 0.14em 0', margin: '0 0.17em -0.14em 0' }}>
+          <span style={{ display: 'inline-block', transform: `translateY(${(1 - k) * 110}%) rotate(${(1 - k) * 8}deg)`,
+            transformOrigin: '0 100%', ...style }}>
+            {word}
+          </span>
+        </span>
+      )
+    })
+  })
 }
 
 const Kicker = ({ children, color = C.accent, style }) => (
@@ -264,18 +310,37 @@ const Skeleton = ({ w, h = 12 }) => (
 )
 
 /* ─── Scène 1 : intro (0 – 4 s) ────────────────────────────────────── */
+// Un point tombe, rebondit, s'étire en trait ; le logo en jaillit. Puis la caméra plonge dans le point du « i ».
+const INTRO_WORD_W = 780
+const INTRO_LEFT = (W - INTRO_WORD_W) / 2
+const INTRO_TOP = 200
+const LOGO_SCALE = INTRO_WORD_W / LOGO_W
+const I_DOT = [INTRO_LEFT + LOGO_LETTERS[4][1] * LOGO_SCALE, INTRO_TOP + 28 * LOGO_SCALE]
+const LINE_Y = INTRO_TOP + 190 * LOGO_SCALE
+
 function Intro({ t }) {
-  const lift = eInOut(prog(t, 3.3, 0.7)) * -14
-  const wordW = 780
-  const left = (W - wordW) / 2
+  const fall = prog(t, 0.05, 0.55)
+  const squash = Math.sin(prog(t, 0.47, 0.22) * Math.PI)
+  const stretch = eInOutExpo(prog(t, 0.68, 0.4))
+  const retract = eInOutExpo(prog(t, 1.05, 0.5))
+  const dotW = lerp(30, INTRO_WORD_W + 40, stretch) * (1 - retract)
+  const dotH = lerp(30, 8, stretch)
+  const dotY = lerp(LINE_Y, LINE_Y + 82, retract)
+  const dive = eInExpo(prog(t, 3.55, 0.55))
   return (
-    <div style={{ position: 'absolute', inset: 0, transform: `translateY(${lift}px)` }}>
-      <Steam t={t} start={1.25} x={left + (LOGO_LETTERS[4][1] / LOGO_W) * wordW} y={150} color={C.accent} />
-      <div style={abs(left, 200)}>
-        <Wordmark t={t} start={0.2} width={wordW} />
+    <Layer style={{ transform: `translate(${(640 - I_DOT[0]) * eOutExpo(prog(t, 3.5, 0.5))}px, ${(360 - I_DOT[1]) * eOutExpo(prog(t, 3.5, 0.5))}px) scale(${1 + 70 * dive})`,
+      transformOrigin: `${I_DOT[0]}px ${I_DOT[1]}px` }}>
+      {fall > 0 && dotW > 0.5 && (
+        <div style={abs(640 - dotW / 2, lerp(-60, dotY, eBounce(fall)) - dotH / 2, {
+          width: dotW, height: dotH, borderRadius: 15, background: C.accent,
+          transform: `scale(${1 + squash * 0.45}, ${1 - squash * 0.4})`, transformOrigin: '50% 100%' })} />
+      )}
+      <Steam t={t} start={1.7} x={I_DOT[0]} y={INTRO_TOP - 50} color={C.accent} />
+      <div style={abs(INTRO_LEFT, INTRO_TOP)}>
+        <Wordmark t={t} start={0.92} width={INTRO_WORD_W} mode="burst" />
       </div>
-      <div style={abs(0, 402, { width: W, textAlign: 'center', fontFamily: SERIF, fontSize: 44, color: C.fg, ...appear(t, 1.55, 0.6) })}>
-        L'ERP <span style={{ color: C.accent, fontStyle: 'italic' }}>libre</span> et modulaire des petites entreprises.
+      <div style={abs(0, 402, { width: W, textAlign: 'center', fontFamily: SERIF, fontSize: 44, color: C.fg })}>
+        <Kinetic t={t} start={1.45} parts={[["L'ERP"], ['libre', { color: C.accent, fontStyle: 'italic' }], ['et modulaire des petites entreprises.']]} />
       </div>
       <div style={abs(0, 496, { width: W, display: 'flex', justifyContent: 'center', gap: 14 })}>
         {[
@@ -286,17 +351,26 @@ function Intro({ t }) {
           <div key={label} style={{
             display: 'flex', alignItems: 'center', gap: 9, padding: '11px 18px', borderRadius: 999,
             background: i === 2 ? C.accentSoft : C.surface, border: `1px solid ${i === 2 ? 'rgba(232,81,14,.25)' : C.border}`,
-            fontFamily: SANS, fontWeight: 600, fontSize: 18, color: i === 2 ? C.accentInk : C.fg, ...pop(t, 2.25 + i * 0.16),
+            fontFamily: SANS, fontWeight: 600, fontSize: 18, color: i === 2 ? C.accentInk : C.fg,
+            ...enter(t, 2.1 + i * 0.1, 0.6, { y: 40, s: 0.6, blur: 6 }),
           }}>
             <Icon name={ic} size={19} color={i === 2 ? C.accent : C.fg} /> {label}
           </div>
         ))}
       </div>
-    </div>
+    </Layer>
   )
 }
 
+// Passage au noir : la plongée dans le point du « i » remplit l'écran, la scène suivante en ressort.
+function Blackout({ t }) {
+  const o = t < 4.1 ? eInExpo(prog(t, 3.85, 0.25)) : 1 - eOutExpo(prog(t, 4.1, 0.45))
+  if (o <= 0) return null
+  return <div style={{ position: 'absolute', inset: 0, background: C.fg, opacity: o }} />
+}
+
 /* ─── Scène 2 : les trucs chiants (4 – 9 s) ────────────────────────── */
+// Les tâches tombent et s'empilent… puis sont aspirées par le noyau de l'IA.
 const CHORES = [
   ['mail', 'Relancer Jean Martin (3e fois)', 'F-2026-031 · 45 jours de retard', 640, 120, -6],
   ['folder', 'Classer 47 justificatifs', 'Photos floues, PDF nommés « scan »', 875, 200, 5],
@@ -305,46 +379,54 @@ const CHORES = [
   ['bank', "Déclarer l'URSSAF", 'Chiffre encaissé, cotisations', 640, 460, 7],
   ['box', 'Saisir la réception fournisseur', 'Et mettre le stock à jour', 880, 540, -3],
 ]
+const CORE = [360, 370] // le noyau de l'IA, futur centre de la barre de saisie
+const ABSORB_AT = 8.5
+const absorbArrival = (i) => ABSORB_AT + i * 0.06 + 0.42
 
 function Chores({ t }) {
-  const shake = prog(t, 7.7, 0.25) * (1 - prog(t, 8.6, 0.3))
-  const minutes = Math.round(400 * eOut(prog(t, 6.1, 1.7)))
+  const shake = prog(t, 7.6, 0.2) * (1 - prog(t, 8.2, 0.2))
+  const minutes = Math.round(400 * eOut(prog(t, 6.0, 1.6)))
   return (
-    <div style={{ position: 'absolute', inset: 0 }}>
-      <Kicker style={abs(80, 92, appear(t, 4.15))}>Le quotidien d'une petite entreprise</Kicker>
-      {['Facturer.', 'Relancer.', 'Classer.', 'Déclarer.'].map((w, i) => (
-        <div key={w} style={abs(78, 128 + i * 70, { fontFamily: SERIF, fontSize: 72, lineHeight: 1, color: C.fg, ...appear(t, 4.3 + i * 0.22, 0.5, 36) })}>
-          {w}
+    <Layer style={enter(t, 4.08, 0.7, { s: 1.22, blur: 14 })}>
+      <Layer style={leave(t, ABSORB_AT - 0.1, 0.4, { x: -320, blur: 14 })}>
+        <Kicker style={abs(80, 92)}><Kinetic t={t} start={4.2} parts={[["Le quotidien d'une petite entreprise"]]} stagger={0.03} /></Kicker>
+        {['Facturer.', 'Relancer.', 'Classer.', 'Déclarer.'].map((w, i) => (
+          <div key={w} style={abs(78, 128 + i * 70, { fontFamily: SERIF, fontSize: 72, lineHeight: 1, color: C.fg })}>
+            <Kinetic t={t} start={4.3 + i * 0.14} parts={[[w]]} dur={0.7} />
+          </div>
+        ))}
+        <div style={abs(80, 418, { fontFamily: SANS, fontSize: 26, fontWeight: 500, color: C.muted, ...enter(t, 5.3, 0.6, { x: -40, blur: 6 }) })}>
+          Bref, <span style={{ color: C.fg, fontWeight: 700, position: 'relative' }}>
+            les trucs chiants
+            <svg width="210" height="14" viewBox="0 0 210 14" style={{ position: 'absolute', left: 0, bottom: -10 }}>
+              <path d="M3 9c40-6 80-8 120-4s60 2 84-3" stroke={C.accent} strokeWidth="4" fill="none" strokeLinecap="round"
+                pathLength="1" strokeDasharray="1" strokeDashoffset={1 - eOutExpo(prog(t, 5.7, 0.6))} />
+            </svg>
+          </span>.
         </div>
-      ))}
-      <div style={abs(80, 418, { fontFamily: SANS, fontSize: 26, fontWeight: 500, color: C.muted, ...appear(t, 5.35) })}>
-        Bref, <span style={{ color: C.fg, fontWeight: 700, position: 'relative' }}>
-          les trucs chiants
-          <svg width="210" height="14" viewBox="0 0 210 14" style={{ position: 'absolute', left: 0, bottom: -10 }}>
-            <path d="M3 9c40-6 80-8 120-4s60 2 84-3" stroke={C.accent} strokeWidth="4" fill="none" strokeLinecap="round"
-              pathLength="1" strokeDasharray="1" strokeDashoffset={1 - eOut(prog(t, 5.75, 0.5))} />
-          </svg>
-        </span>.
-      </div>
-      <div style={abs(80, 500, appear(t, 5.95))}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: SANS, fontSize: 17, fontWeight: 600, color: C.muted }}>
-          <Icon name="clock" size={18} color={C.muted} /> Temps perdu cette semaine
+        <div style={abs(80, 500, enter(t, 5.9, 0.6, { y: 30, blur: 8 }))}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: SANS, fontSize: 17, fontWeight: 600, color: C.muted }}>
+            <Icon name="clock" size={18} color={C.muted} /> Temps perdu cette semaine
+          </div>
+          <div style={{ fontFamily: SERIF, fontSize: 92, lineHeight: 1.05, color: C.accent, fontVariantNumeric: 'tabular-nums',
+            transform: `rotate(${shake * Math.sin(t * 50) * 1.5}deg) scale(${1 + punch(t, 7.6, 0.12)})`, transformOrigin: '0 50%' }}>
+            {Math.floor(minutes / 60)} h {String(minutes % 60).padStart(2, '0')}
+          </div>
         </div>
-        <div style={{ fontFamily: SERIF, fontSize: 92, lineHeight: 1.05, color: C.accent, transform: `rotate(${shake * Math.sin(t * 50) * 1.5}deg)` }}>
-          {Math.floor(minutes / 60)} h {String(minutes % 60).padStart(2, '0')}
-        </div>
-      </div>
+      </Layer>
       {CHORES.map(([ic, title, sub, x, y, rot], i) => {
-        const s = 4.45 + i * 0.3
+        const s = 4.45 + i * 0.28
         const p = prog(t, s, 0.95)
-        if (p <= 0) return null
+        const suck = eInExpo(prog(t, ABSORB_AT + i * 0.06, 0.42))
+        if (p <= 0 || suck >= 0.97) return null
         const yy = lerp(-160, y, eBounce(p))
         const jx = shake * Math.sin(t * 55 + i * 1.7) * 4
         const jr = shake * Math.sin(t * 47 + i) * 2.2
         return (
-          <Card key={title} style={abs(x + jx, yy, {
+          <Card key={title} style={abs(lerp(x + jx, CORE[0] - 170, suck), lerp(yy, CORE[1] - 37, suck), {
             width: 340, padding: '15px 18px', display: 'flex', alignItems: 'center', gap: 14,
-            transform: `rotate(${lerp(rot * 4, rot, eOut(p)) + jr}deg)`,
+            transform: `rotate(${lerp(rot * 4, rot, eOut(p)) + jr + suck * 300}deg) scale(${lerp(1, 0.04, suck)})`,
+            filter: suck > 0 ? `blur(${suck * 6}px)` : 'none',
           })}>
             <div style={{ width: 44, height: 44, borderRadius: 12, background: C.accentSoft, display: 'grid', placeItems: 'center' }}>
               <Icon name={ic} size={22} color={C.accent} />
@@ -362,126 +444,160 @@ function Chores({ t }) {
           </Card>
         )
       })}
-    </div>
+    </Layer>
   )
 }
 
 /* ─── Scène 3 : un devis en une phrase (9 – 15 s) ──────────────────── */
+// Le noyau de l'IA avale les tâches, puis s'ouvre en barre de saisie ; à la fin, le devis se replie en panneau.
 const PROMPT = 'Mission logo pour Jean Martin, 800 €, livraison le 15'
-const PROMPT_START = 9.75
-const PROMPT_CPS = 27
+const PROMPT_START = 9.9
+const PROMPT_CPS = 28
+const QUOTE_RECT = [700, 150, 500, 440]
+const PANEL_RECTS = [[80, 176, 352, 430], [464, 176, 352, 430], [848, 176, 352, 430]]
+const BAR_RECT = [80, 330, 560, 80]
 
 function QuoteFromSentence({ t }) {
   const sent = prog(t, 11.9, 0.25)
-  const total = 800 * eOut(prog(t, 13.15, 0.8))
+  const total = 800 * eOutExpo(prog(t, 13.15, 0.9))
   const fields = [
     ['Client', 'Jean Martin', 12.25],
     ['Livraison', '15 novembre 2026', 12.5],
     ['Échéance', 'À réception', 12.75],
   ]
+  // Noyau → barre
+  const born = eBack(prog(t, ABSORB_AT - 0.05, 0.35))
+  const gulps = CHORES.reduce((sum, _, i) => sum + punch(t, absorbArrival(i), 0.16), 0)
+  const morph = eInOutExpo(prog(t, 9.3, 0.55))
+  const bar = lerpRect([CORE[0] - 36, CORE[1] - 36, 72, 72], BAR_RECT, morph)
+  const barIn = prog(t, 9.7, 0.25)
+  // Devis → panneau central
+  const fold = eInOutExpo(prog(t, 14.62, 0.5))
+  const card = lerpRect(QUOTE_RECT, PANEL_RECTS[1], fold)
+  const cardContent = 1 - prog(t, 14.5, 0.14)
   return (
-    <div style={{ position: 'absolute', inset: 0 }}>
-      <Kicker style={abs(80, 86, appear(t, 9.1))}>Avec l'IA</Kicker>
-      <div style={abs(78, 116, { fontFamily: SERIF, fontSize: 62, lineHeight: 1.05, color: C.fg, width: 560, ...appear(t, 9.2) })}>
-        Les trucs chiants ?<br />
-        <span style={{ color: C.accent, position: 'relative', display: 'inline-block' }}>
-          L'IA s'en charge.
-          <span style={{ position: 'absolute', left: 0, right: 0, bottom: 2, height: 4, borderRadius: 2, background: C.accent,
-            transformOrigin: 'left', transform: `scaleX(${eOut(prog(t, 9.7, 0.5))})` }} />
-        </span>
-      </div>
+    <Layer>
+      <Layer style={leave(t, 14.5, 0.42, { y: -140, blur: 14 })}>
+        <Kicker style={abs(80, 86)}><Kinetic t={t} start={9.2} parts={[["Avec l'IA"]]} /></Kicker>
+        <div style={abs(78, 116, { fontFamily: SERIF, fontSize: 62, lineHeight: 1.05, color: C.fg, width: 600 })}>
+          <Kinetic t={t} start={9.3} parts={[['Les trucs chiants ?'], ['\n'], ["L'IA s'en charge.", { color: C.accent }]]} />
+          <div style={{ height: 4, width: 452, borderRadius: 2, background: C.accent, marginTop: -6,
+            transformOrigin: 'left', transform: `scaleX(${eOutExpo(prog(t, 9.85, 0.6))})` }} />
+        </div>
+      </Layer>
 
-      {/* Barre de saisie */}
-      <Card style={abs(80, 330, { width: 560, height: 80, padding: '0 18px', display: 'flex', alignItems: 'center', gap: 14,
-        borderColor: sent > 0 && sent < 1 ? C.accent : C.border, ...appear(t, 9.45) })}>
-        <div style={{ transform: `rotate(${t * 40}deg) scale(${1 + Math.sin(t * 6) * 0.08})` }}>
-          <Icon name="sparkle" size={26} color={C.accent} />
-        </div>
-        <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', justifyContent: typed(PROMPT, t, PROMPT_START, PROMPT_CPS).length > 34 ? 'flex-end' : 'flex-start',
-          fontFamily: SANS, fontSize: 20, fontWeight: 500, color: t < PROMPT_START ? C.subtle : C.fg, whiteSpace: 'nowrap', overflow: 'hidden' }}>
-          {t < PROMPT_START ? 'Décrivez votre devis…' : typed(PROMPT, t, PROMPT_START, PROMPT_CPS)}
-          {t >= PROMPT_START && t < 12 && <Caret t={t} />}
-        </div>
-        <div style={{ width: 46, height: 46, borderRadius: 12, display: 'grid', placeItems: 'center',
-          background: typingDone(PROMPT, t, PROMPT_START, PROMPT_CPS) ? C.accent : C.surface3,
-          transform: `scale(${1 - Math.sin(sent * Math.PI) * 0.14})` }}>
-          <Icon name="arrow" size={22} color="#fff" />
-        </div>
-      </Card>
-      <div style={abs(82, 432, { width: 520, fontFamily: SANS, fontSize: 19, lineHeight: 1.45, color: C.muted, ...appear(t, 12.35) })}>
-        Une phrase suffit : client, lignes, dates et mentions légales sont remplis. <b style={{ color: C.fg }}>Vous relisez, vous envoyez.</b>
-      </div>
-
-      {/* Particules qui « portent » la phrase vers le devis */}
-      {Array.from({ length: 7 }, (_, i) => {
-        const k = prog(t, 11.95 + i * 0.05, 0.55)
-        if (k <= 0 || k >= 1) return null
-        const x = lerp(600, 690, k)
-        const y = lerp(370, 300, k) - Math.sin(k * Math.PI) * (40 + i * 10)
-        return <div key={i} style={abs(x, y, { width: 10, height: 10, borderRadius: 5, background: C.accent, opacity: 1 - k * 0.5 })} />
-      })}
-
-      {/* Devis */}
-      <Card style={abs(700, 150, { width: 500, padding: 28, ...pop(t, 9.55, 0.6) })}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div>
-            <div style={{ fontFamily: SANS, fontWeight: 800, fontSize: 24, color: C.fg, letterSpacing: '-0.02em' }}>Devis</div>
-            <div style={{ fontFamily: MONO, fontSize: 14, color: C.muted, marginTop: 2 }}>D-2026-042</div>
-          </div>
-          <div style={{ padding: '6px 12px', borderRadius: 999, fontFamily: SANS, fontWeight: 700, fontSize: 13,
-            background: t > 13.95 ? C.goodSoft : C.surface2, color: t > 13.95 ? C.good : C.muted }}>
-            {t > 13.95 ? 'Prêt' : 'Brouillon'}
-          </div>
-        </div>
-        <div style={{ height: 1, background: C.border, margin: '20px 0' }} />
-        {fields.map(([label, value, s]) => (
-          <div key={label} style={{ display: 'flex', alignItems: 'center', height: 34 }}>
-            <div style={{ width: 120, fontFamily: SANS, fontSize: 15, color: C.muted }}>{label}</div>
-            {t < s ? <Skeleton w={150} /> : (
-              <div style={{ fontFamily: SANS, fontWeight: 600, fontSize: 17, color: C.fg, ...appear(t, s, 0.35, 10),
-                background: `linear-gradient(90deg, ${C.accentSoft} ${100 - prog(t, s + 0.2, 0.6) * 100}%, transparent 0)`, padding: '2px 6px', marginLeft: -6, borderRadius: 6 }}>
-                {value}
+      <Layer style={leave(t, 14.58, 0.42, { x: -420, blur: 16 })}>
+        {/* Noyau de l'IA qui devient la barre de saisie */}
+        {t >= ABSORB_AT - 0.05 && (
+          <div style={abs(bar[0], bar[1], { width: bar[2], height: bar[3], borderRadius: lerp(36, 18, morph),
+            transform: `scale(${born * (1 + gulps)})`, boxShadow: SHADOW, overflow: 'hidden' })}>
+            <div style={{ position: 'absolute', inset: 0, background: C.surface, border: `1px solid ${sent > 0 && sent < 1 ? C.accent : C.border}`,
+              borderRadius: 'inherit', opacity: morph }} />
+            <div style={{ position: 'absolute', inset: 0, background: C.accent, opacity: 1 - morph }} />
+            {morph < 1 && (
+              <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', opacity: 1 - morph,
+                transform: `rotate(${t * 220}deg)` }}>
+                <Icon name="sparkle" size={30} color="#fff" />
               </div>
             )}
-          </div>
-        ))}
-        <div style={{ marginTop: 16, borderRadius: 12, border: `1px solid ${C.border}`, overflow: 'hidden' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 50px 110px 110px', padding: '10px 14px', background: C.surface2,
-            fontFamily: SANS, fontSize: 13, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '.05em' }}>
-            <span>Désignation</span><span>Qté</span><span style={{ textAlign: 'right' }}>PU HT</span><span style={{ textAlign: 'right' }}>Total</span>
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 50px 110px 110px', padding: '13px 14px', alignItems: 'center',
-            fontFamily: SANS, fontSize: 16, color: C.fg, height: 48 }}>
-            {t < 12.95 ? (<><Skeleton w={130} /><Skeleton w={20} /><Skeleton w={70} /><Skeleton w={70} /></>) : (
-              <>
-                <span style={{ fontWeight: 600, ...appear(t, 12.95, 0.3, 8) }}>Mission logo</span>
-                <span style={appear(t, 13.0, 0.3, 8)}>1</span>
-                <span style={{ textAlign: 'right', ...appear(t, 13.05, 0.3, 8) }}>800,00 €</span>
-                <span style={{ textAlign: 'right', fontWeight: 600, ...appear(t, 13.1, 0.3, 8) }}>800,00 €</span>
-              </>
-            )}
-          </div>
-        </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginTop: 20 }}>
-          <div style={{ fontFamily: SANS, fontSize: 13, color: C.subtle, maxWidth: 240, lineHeight: 1.4, ...appear(t, 13.55, 0.4, 6) }}>
-            TVA non applicable, art. 293 B du CGI
-          </div>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ fontFamily: SANS, fontSize: 14, color: C.muted }}>Total HT</div>
-            <div style={{ fontFamily: SANS, fontWeight: 800, fontSize: 34, color: C.fg, letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums' }}>
-              {euro(total)}
+            <div style={{ position: 'absolute', inset: 0, padding: '0 18px', display: 'flex', alignItems: 'center', gap: 14, opacity: barIn }}>
+              <div style={{ transform: `rotate(${t * 40}deg) scale(${1 + Math.sin(t * 6) * 0.08})` }}>
+                <Icon name="sparkle" size={26} color={C.accent} />
+              </div>
+              <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center',
+                justifyContent: typed(PROMPT, t, PROMPT_START, PROMPT_CPS).length > 34 ? 'flex-end' : 'flex-start',
+                fontFamily: SANS, fontSize: 20, fontWeight: 500, color: t < PROMPT_START ? C.subtle : C.fg, whiteSpace: 'nowrap', overflow: 'hidden' }}>
+                {t < PROMPT_START ? 'Décrivez votre devis…' : typed(PROMPT, t, PROMPT_START, PROMPT_CPS)}
+                {t >= PROMPT_START && t < 12 && <Caret t={t} />}
+              </div>
+              <div style={{ width: 46, height: 46, borderRadius: 12, display: 'grid', placeItems: 'center', flexShrink: 0,
+                background: typingDone(PROMPT, t, PROMPT_START, PROMPT_CPS) ? C.accent : C.surface3,
+                transform: `scale(${1 - Math.sin(sent * Math.PI) * 0.18})` }}>
+                <Icon name="arrow" size={22} color="#fff" />
+              </div>
             </div>
           </div>
+        )}
+        <div style={abs(82, 432, { width: 520, fontFamily: SANS, fontSize: 19, lineHeight: 1.45, color: C.muted, ...enter(t, 12.35, 0.6, { y: 20, blur: 6 }) })}>
+          Une phrase suffit : client, lignes, dates et mentions légales sont remplis. <b style={{ color: C.fg }}>Vous relisez, vous envoyez.</b>
         </div>
-        <div style={abs(196, -30, {
-          padding: '10px 16px', border: `3px solid ${C.accent}`, borderRadius: 12, color: C.accent, background: 'rgba(255,255,255,.92)',
-          fontFamily: SANS, fontWeight: 800, fontSize: 18, letterSpacing: '.04em', textTransform: 'uppercase', display: 'flex', gap: 8, alignItems: 'center',
-          ...pop(t, 13.95, 0.45, 'rotate(8deg)'),
-        })}>
-          <Icon name="check" size={20} color={C.accent} stroke={3} /> Prêt à envoyer
+        {/* La phrase part vers le devis */}
+        {Array.from({ length: 9 }, (_, i) => {
+          const k = eInOutExpo(prog(t, 11.95 + i * 0.035, 0.5))
+          if (k <= 0 || k >= 1) return null
+          const x = lerp(610, 700, k)
+          const y = lerp(370, 300, k) - Math.sin(k * Math.PI) * (50 + i * 12)
+          return <div key={i} style={abs(x, y, { width: 10, height: 10, borderRadius: 5, background: C.accent, opacity: 1 - k * 0.4 })} />
+        })}
+      </Layer>
+
+      {/* Devis (il se replie ensuite en panneau « Relances ») */}
+      {t < 15.12 && (
+        <div style={abs(card[0], card[1], { width: card[2], height: card[3], ...enter(t, 9.6, 0.8, { x: 160, r: 5, s: 0.9, blur: 12 }) })}>
+          <Card style={{ position: 'absolute', inset: 0, padding: 28 }}>
+            <div style={{ opacity: cardContent }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div>
+                  <div style={{ fontFamily: SANS, fontWeight: 800, fontSize: 24, color: C.fg, letterSpacing: '-0.02em' }}>Devis</div>
+                  <div style={{ fontFamily: MONO, fontSize: 14, color: C.muted, marginTop: 2 }}>D-2026-042</div>
+                </div>
+                <div style={{ padding: '6px 12px', borderRadius: 999, fontFamily: SANS, fontWeight: 700, fontSize: 13,
+                  background: t > 13.95 ? C.goodSoft : C.surface2, color: t > 13.95 ? C.good : C.muted }}>
+                  {t > 13.95 ? 'Prêt' : 'Brouillon'}
+                </div>
+              </div>
+              <div style={{ height: 1, background: C.border, margin: '20px 0' }} />
+              {fields.map(([label, value, s]) => (
+                <div key={label} style={{ display: 'flex', alignItems: 'center', height: 34 }}>
+                  <div style={{ width: 120, fontFamily: SANS, fontSize: 15, color: C.muted }}>{label}</div>
+                  {t < s ? <Skeleton w={150} /> : (
+                    <div style={{ fontFamily: SANS, fontWeight: 600, fontSize: 17, color: C.fg, ...appear(t, s, 0.35, 10),
+                      background: `linear-gradient(90deg, ${C.accentSoft} ${100 - prog(t, s + 0.2, 0.6) * 100}%, transparent 0)`, padding: '2px 6px', marginLeft: -6, borderRadius: 6 }}>
+                      {value}
+                    </div>
+                  )}
+                </div>
+              ))}
+              <div style={{ marginTop: 16, borderRadius: 12, border: `1px solid ${C.border}`, overflow: 'hidden' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 50px 110px 110px', padding: '10px 14px', background: C.surface2,
+                  fontFamily: SANS, fontSize: 13, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '.05em' }}>
+                  <span>Désignation</span><span>Qté</span><span style={{ textAlign: 'right' }}>PU HT</span><span style={{ textAlign: 'right' }}>Total</span>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 50px 110px 110px', padding: '13px 14px', alignItems: 'center',
+                  fontFamily: SANS, fontSize: 16, color: C.fg, height: 48 }}>
+                  {t < 12.95 ? (<><Skeleton w={130} /><Skeleton w={20} /><Skeleton w={70} /><Skeleton w={70} /></>) : (
+                    <>
+                      <span style={{ fontWeight: 600, ...appear(t, 12.95, 0.3, 8) }}>Mission logo</span>
+                      <span style={appear(t, 13.0, 0.3, 8)}>1</span>
+                      <span style={{ textAlign: 'right', ...appear(t, 13.05, 0.3, 8) }}>800,00 €</span>
+                      <span style={{ textAlign: 'right', fontWeight: 600, ...appear(t, 13.1, 0.3, 8) }}>800,00 €</span>
+                    </>
+                  )}
+                </div>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginTop: 20 }}>
+                <div style={{ fontFamily: SANS, fontSize: 13, color: C.subtle, maxWidth: 240, lineHeight: 1.4, ...appear(t, 13.55, 0.4, 6) }}>
+                  TVA non applicable, art. 293 B du CGI
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontFamily: SANS, fontSize: 14, color: C.muted }}>Total HT</div>
+                  <div style={{ fontFamily: SANS, fontWeight: 800, fontSize: 34, color: C.fg, letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums' }}>
+                    {euro(total)}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </Card>
+          <div style={abs(196, -30, {
+            padding: '10px 16px', border: `3px solid ${C.accent}`, borderRadius: 12, color: C.accent, background: 'rgba(255,255,255,.92)',
+            fontFamily: SANS, fontWeight: 800, fontSize: 18, letterSpacing: '.04em', textTransform: 'uppercase', display: 'flex', gap: 8, alignItems: 'center',
+            ...(t < 14.5 ? pop(t, 13.95, 0.4, 'rotate(8deg)') : leave(t, 14.5, 0.35, { y: -90, r: 30, s: 1.4, blur: 8 })),
+          })}>
+            <Icon name="check" size={20} color={C.accent} stroke={3} /> Prêt à envoyer
+          </div>
         </div>
-      </Card>
-    </div>
+      )}
+    </Layer>
   )
 }
 
@@ -521,7 +637,7 @@ function Receipts({ t }) {
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 16, minHeight: 76 }}>
         {['Boulonnerie Ouest', '142,80 € TTC', 'Fournitures', 'Échéance 30/11'].map((chip, i) => (
           <div key={chip} style={{ padding: '6px 11px', borderRadius: 999, background: i === 1 ? C.accentSoft : C.surface2,
-            color: i === 1 ? C.accentInk : C.fg, fontFamily: SANS, fontWeight: 600, fontSize: 14, ...pop(t, 17.35 + i * 0.22, 0.4) }}>
+            color: i === 1 ? C.accentInk : C.fg, fontFamily: SANS, fontWeight: 600, fontSize: 14, ...pop(t, 17.35 + i * 0.18, 0.4) }}>
             {chip}
           </div>
         ))}
@@ -546,7 +662,7 @@ function Reminders({ t }) {
     ['Relance ferme', 17.3],
     ['Mise en demeure amiable', 18.05],
   ]
-  const fill = eInOut(prog(t, 16.55, 1.5))
+  const fill = eInOutExpo(prog(t, 16.55, 1.5))
   return (
     <>
       <PanelHead icon="mail" title="Relances d'impayés rédigées" />
@@ -557,12 +673,12 @@ function Reminders({ t }) {
       <div style={{ position: 'relative', marginTop: 18, paddingLeft: 6 }}>
         <div style={abs(15, 12, { width: 3, height: 76, background: C.surface3, borderRadius: 2 })} />
         <div style={abs(15, 12, { width: 3, height: 76 * fill, background: C.accent, borderRadius: 2 })} />
-        {levels.map(([label, s], i) => {
+        {levels.map(([label, s]) => {
           const on = t >= s
           return (
             <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 12, height: 38, position: 'relative' }}>
               <div style={{ width: 21, height: 21, borderRadius: 11, background: on ? C.accent : '#fff', border: `3px solid ${on ? C.accent : C.borderStrong}`,
-                transform: `scale(${on ? 1 + Math.sin(prog(t, s, 0.35) * Math.PI) * 0.35 : 1})` }} />
+                transform: `scale(${on ? 1 + Math.sin(prog(t, s, 0.35) * Math.PI) * 0.45 : 1})` }} />
               <div style={{ fontFamily: SANS, fontSize: 15.5, fontWeight: on ? 700 : 500, color: on ? C.fg : C.subtle }}>{label}</div>
             </div>
           )
@@ -571,7 +687,7 @@ function Reminders({ t }) {
       <div style={{ marginTop: 16, padding: 14, borderRadius: 12, border: `1px solid ${C.border}`, background: '#fff', height: 100 }}>
         <div style={{ fontFamily: SANS, fontSize: 14.5, color: C.fg, height: 20 }}>{typed('Bonjour Jean,', t, 18.5, 30)}</div>
         {[250, 210, 236, 120].map((w, i) => (
-          <div key={i} style={{ width: w * eOut(prog(t, 19.0 + i * 0.18, 0.35)), height: 7, borderRadius: 4, background: C.surface3, marginTop: 9 }} />
+          <div key={i} style={{ width: w * eOutExpo(prog(t, 19.0 + i * 0.14, 0.45)), height: 7, borderRadius: 4, background: C.surface3, marginTop: 9 }} />
         ))}
       </div>
       <div style={{ marginTop: 12, fontFamily: SANS, fontSize: 13.5, color: C.muted, ...appear(t, 19.75, 0.4, 8) }}>
@@ -585,7 +701,7 @@ function MyViews({ t }) {
   const months = ['mai', 'juin', 'juil.', 'août', 'sept.', 'oct.']
   const vals = [4.2, 5.1, 3.8, 6.4, 7.0, 8.3]
   const spend = [2.4, 2.9, 2.2, 3.1, 2.6, 3.4]
-  const line = eOut(prog(t, 19.25, 0.7))
+  const line = eInOutExpo(prog(t, 19.25, 0.8))
   const chartH = 150
   const pts = spend.map((v, i) => `${20 + i * 50},${chartH - (v / 9) * chartH}`).join(' ')
   const p2 = '+ ajoute mes dépenses'
@@ -601,14 +717,14 @@ function MyViews({ t }) {
       <div style={{ position: 'relative', height: chartH, marginTop: 24 }}>
         {[0, 1, 2].map((g) => <div key={g} style={abs(0, (chartH / 3) * g, { width: '100%', height: 1, background: C.border })} />)}
         {vals.map((v, i) => {
-          const k = eBack(prog(t, 17.0 + i * 0.11, 0.55))
+          const k = eBack(prog(t, 17.0 + i * 0.09, 0.55))
           const h = (v / 9) * chartH * Math.max(0, k)
           return (
             <div key={i} style={abs(5 + i * 50, chartH - h, { width: 30, height: h, borderRadius: '7px 7px 3px 3px',
               background: i === 5 ? C.accent : 'rgba(232,81,14,.32)' })} />
           )
         })}
-        <div style={abs(222, chartH - (8.3 / 9) * chartH - 30, { fontFamily: SANS, fontWeight: 800, fontSize: 14, color: C.accentInk, ...pop(t, 17.95, 0.4) })}>8,3 k€</div>
+        <div style={abs(222, chartH - (8.3 / 9) * chartH - 30, { fontFamily: SANS, fontWeight: 800, fontSize: 14, color: C.accentInk, ...pop(t, 17.85, 0.4) })}>8,3 k€</div>
         {line > 0 && (
           <svg width="300" height={chartH} style={abs(0, 0)}>
             <polyline points={pts} fill="none" stroke={C.fg} strokeWidth="3" strokeLinejoin="round" strokeLinecap="round"
@@ -626,30 +742,48 @@ function MyViews({ t }) {
   )
 }
 
+// L'interrupteur géant au centre de l'écran (2 × l'interrupteur de la scène 5)
+const TOGGLE_RECT = [536, 304, 208, 112]
+const MERGE_AT = 20.4
+
 function Delegated({ t }) {
   const panels = [Receipts, Reminders, MyViews]
+  const entries = [{ x: -560, r: -8 }, null, { x: 560, r: 8 }]
+  const contentOut = 1 - prog(t, MERGE_AT - 0.1, 0.15)
   return (
-    <div style={{ position: 'absolute', inset: 0 }}>
-      <div style={abs(78, 72, { fontFamily: SERIF, fontSize: 58, lineHeight: 1, color: C.fg, ...appear(t, 15.1) })}>
-        Classer, relancer, analyser : <span style={{ color: C.accent, fontStyle: 'italic' }}>délégué.</span>
+    <Layer>
+      <div style={abs(78, 72, { fontFamily: SERIF, fontSize: 58, lineHeight: 1, color: C.fg, ...leave(t, MERGE_AT - 0.15, 0.4, { y: -120, blur: 12 }) })}>
+        <Kinetic t={t} start={15.0} parts={[['Classer, relancer, analyser :'], ['délégué.', { color: C.accent, fontStyle: 'italic' }]]} stagger={0.07} />
       </div>
-      {panels.map((Panel, i) => (
-        <Card key={i} style={abs(80 + i * 384, 176, { width: 352, height: 430, padding: 22, ...appear(t, 15.25 + i * 0.22, 0.6, 60) })}>
-          <Panel t={t} />
-        </Card>
-      ))}
-    </div>
+      {panels.map((Panel, i) => {
+        if (i === 1 && t < 15.12) return null // le devis de la scène précédente est en train de devenir ce panneau
+        const merge = eInOutExpo(prog(t, MERGE_AT + i * 0.05, 0.5))
+        const rect = lerpRect(PANEL_RECTS[i], TOGGLE_RECT, merge)
+        const intro = entries[i] ? enter(t, 15.0 + i * 0.05, 0.75, { ...entries[i], blur: 16 }) : {}
+        return (
+          <div key={i} style={abs(rect[0], rect[1], { width: rect[2], height: rect[3], ...intro })}>
+            <Card style={{ position: 'absolute', inset: 0, borderRadius: lerp(18, 56, merge), overflow: 'hidden' }}>
+              <div style={{ padding: 22, opacity: contentOut, ...(i === 1 ? enter(t, 15.15, 0.45, { y: 24, blur: 6 }) : {}) }}>
+                <Panel t={t} />
+              </div>
+              <div style={{ position: 'absolute', inset: 0, background: C.accent, opacity: eInExpo(prog(t, MERGE_AT + 0.15, 0.35)) }} />
+            </Card>
+          </div>
+        )
+      })}
+    </Layer>
   )
 }
 
 /* ─── Scène 5 : et sans IA ? (21 – 26 s) ───────────────────────────── */
+// Ralenti : l'interrupteur géant se coupe, file se ranger, et le devis se remplit à la main.
 const CURSOR = [
-  [22.35, 1230, 690],
-  [22.85, 800, 281],
-  [23.35, 830, 361],
+  [22.55, 1230, 690],
+  [22.95, 800, 281],
+  [23.4, 830, 361],
   [24.1, 709, 441],
   [24.45, 865, 441],
-  [25.25, 1096, 520],
+  [25.2, 1096, 520],
 ]
 function cursorAt(t) {
   if (t <= CURSOR[0][0]) return [CURSOR[0][1], CURSOR[0][2]]
@@ -657,7 +791,7 @@ function cursorAt(t) {
     const [t1, x1, y1] = CURSOR[i]
     const [t0, x0, y0] = CURSOR[i - 1]
     if (t <= t1) {
-      const k = eInOut((t - t0) / (t1 - t0))
+      const k = eInOutExpo((t - t0) / (t1 - t0))
       return [lerp(x0, x1, k), lerp(y0, y1, k) - Math.sin(k * Math.PI) * 30]
     }
   }
@@ -679,13 +813,21 @@ function Field({ label, value, w, active, mono, computed, flash }) {
   )
 }
 
+const FLIP_AT = 21.6
+const PARK_AT = 22.05
+const WHIP_AT = 25.75
+
 function WithoutAI({ t }) {
-  const flip = eBack(prog(t, 21.95, 0.4))
-  const off = t >= 22.1
+  const flip = eBack(prog(t, FLIP_AT, 0.4))
+  const off = t >= FLIP_AT + 0.12
+  const settle = Math.sin(prog(t, 21.0, 0.3) * Math.PI) * (1 - prog(t, 21.0, 0.3))
+  const park = eInOutExpo(prog(t, PARK_AT, 0.55))
+  const tScale = lerp(2, 1, park) * (1 + settle * 0.08)
+  const ripple = prog(t, FLIP_AT + 0.05, 0.6)
   const [cx, cy] = cursorAt(t)
   const clicks = CURSOR.slice(1).map((c) => c[0])
   const totalOn = t >= 24.85
-  const pressed = t >= 25.25 && t < 25.45
+  const pressed = t >= 25.2 && t < 25.4
   const badges = [
     ['check', 'Saisie classique, calculs faits par le serveur'],
     ['doc', 'Justificatifs lus en analyse locale'],
@@ -693,26 +835,42 @@ function WithoutAI({ t }) {
     ['lock', 'Aucune donnée ne quitte votre serveur'],
   ]
   return (
-    <div style={{ position: 'absolute', inset: 0 }}>
-      <Kicker style={abs(80, 86, appear(t, 21.05))}>Sans clé API, sans abonnement</Kicker>
-      <div style={abs(78, 116, { fontFamily: SERIF, fontSize: 62, lineHeight: 1.05, color: C.fg, ...appear(t, 21.15) })}>Et sans IA ?</div>
-      <div style={abs(78, 182, { fontFamily: SERIF, fontSize: 62, lineHeight: 1.05, color: C.accent, fontStyle: 'italic', ...appear(t, 21.5) })}>Tout marche pareil.</div>
+    <Layer style={leave(t, WHIP_AT, 0.4, { x: -1500, blur: 22 })}>
+      <Kicker style={abs(80, 86)}><Kinetic t={t} start={22.0} parts={[['Sans clé API, sans abonnement']]} stagger={0.035} /></Kicker>
+      <div style={abs(78, 116, { fontFamily: SERIF, fontSize: 62, lineHeight: 1.05, color: C.fg })}>
+        <Kinetic t={t} start={22.1} parts={[['Et sans IA ?'], ['\n'], ['Tout marche pareil.', { color: C.accent, fontStyle: 'italic' }]]} stagger={0.07} />
+      </div>
 
-      {/* Interrupteur IA */}
-      <div style={abs(80, 286, { display: 'flex', alignItems: 'center', gap: 18, ...appear(t, 21.4) })}>
-        <div style={{ width: 104, height: 56, borderRadius: 28, position: 'relative', background: off ? C.borderStrong : C.accent }}>
-          <div style={abs(lerp(52, 4, flip), 4, { width: 48, height: 48, borderRadius: 24, background: '#fff', boxShadow: '0 2px 8px rgba(0,0,0,.2)',
-            display: 'grid', placeItems: 'center' })}>
+      {/* Interrupteur IA : né de la fusion des panneaux, coupé au ralenti, puis rangé */}
+      <div style={abs(80, 286, { width: 104, height: 56, transformOrigin: '0 0',
+        transform: `translate(${lerp(TOGGLE_RECT[0] - 80, 0, park)}px, ${lerp(TOGGLE_RECT[1] - 286, 0, park)}px) scale(${tScale})` })}>
+        {ripple > 0 && ripple < 1 && (
+          <div style={{ position: 'absolute', inset: -ripple * 26, borderRadius: 999, border: `${3 - ripple * 2}px solid ${C.accent}`, opacity: 1 - ripple }} />
+        )}
+        <div style={{ position: 'absolute', inset: 0, borderRadius: 28, background: off ? C.borderStrong : C.accent }} />
+        <div style={abs(lerp(52, 4, flip), 4, { width: 48, height: 48, borderRadius: 24, background: '#fff', boxShadow: '0 2px 8px rgba(0,0,0,.2)',
+          display: 'grid', placeItems: 'center', ...pop(t, 21.02, 0.35) })}>
+          <div style={{ transform: `rotate(${off ? 0 : t * 120}deg)` }}>
             <Icon name="sparkle" size={22} color={off ? C.subtle : C.accent} />
           </div>
         </div>
-        <div>
-          <div style={{ fontFamily: SANS, fontWeight: 700, fontSize: 20, color: C.fg }}>Assistant IA</div>
-          <div style={{ fontFamily: SANS, fontSize: 16, color: off ? C.muted : C.accentInk, fontWeight: 600 }}>{off ? 'Désactivé' : 'Activé'}</div>
+      </div>
+      {/* Légende au centre pendant le ralenti */}
+      <div style={abs(0, 438, { width: W, textAlign: 'center', ...leave(t, PARK_AT - 0.05, 0.3, { y: 40, blur: 8 }) })}>
+        <div style={{ fontFamily: SANS, fontWeight: 700, fontSize: 30, color: C.fg }}>
+          <Kinetic t={t} start={21.1} parts={[['Assistant IA']]} />
+        </div>
+        <div style={{ fontFamily: SANS, fontWeight: 600, fontSize: 22, marginTop: 4, color: off ? C.muted : C.accentInk,
+          transform: `scale(${1 + punch(t, FLIP_AT + 0.12, 0.25)})` }}>
+          {off ? 'Désactivé' : 'Activé'}
         </div>
       </div>
+      <div style={abs(202, 288, enter(t, PARK_AT + 0.4, 0.5, { x: -30, blur: 6 }))}>
+        <div style={{ fontFamily: SANS, fontWeight: 700, fontSize: 20, color: C.fg }}>Assistant IA</div>
+        <div style={{ fontFamily: SANS, fontSize: 16, color: C.muted, fontWeight: 600 }}>Désactivé</div>
+      </div>
       {badges.map(([ic, label], i) => (
-        <div key={label} style={abs(80, 378 + i * 54, { display: 'flex', alignItems: 'center', gap: 12, ...appear(t, 22.45 + i * 0.22, 0.45, 14) })}>
+        <div key={label} style={abs(80, 378 + i * 54, { display: 'flex', alignItems: 'center', gap: 12, ...enter(t, 22.6 + i * 0.13, 0.6, { x: -80, blur: 10 }) })}>
           <div style={{ width: 34, height: 34, borderRadius: 17, background: C.goodSoft, display: 'grid', placeItems: 'center' }}>
             <Icon name={ic} size={17} color={C.good} stroke={2.4} />
           </div>
@@ -721,16 +879,16 @@ function WithoutAI({ t }) {
       ))}
 
       {/* Formulaire rempli à la main */}
-      <Card style={abs(620, 160, { width: 580, height: 452, padding: '26px 28px', ...appear(t, 21.6, 0.6, 40) })}>
+      <Card style={abs(620, 160, { width: 580, height: 452, padding: '26px 28px', ...enter(t, 22.2, 0.7, { x: 520, r: 4, blur: 14 }) })}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
           <div style={{ fontFamily: SANS, fontWeight: 800, fontSize: 22, color: C.fg }}>Nouveau devis</div>
           <div style={{ fontFamily: MONO, fontSize: 14, color: C.muted }}>D-2026-043</div>
         </div>
         <div style={{ marginTop: 24 }}>
-          <Field label="Client" w={524} active={t >= 22.85 && t < 23.35} value={t >= 22.95 ? typed('Atelier Dupont', t, 22.95, 34) : ''} />
+          <Field label="Client" w={524} active={t >= 22.95 && t < 23.4} value={typed('Atelier Dupont', t, 23.0, 34)} />
         </div>
         <div style={{ marginTop: 14 }}>
-          <Field label="Désignation" w={524} active={t >= 23.35 && t < 24.1} value={typed('Pose de cloison placo', t, 23.45, 32)} />
+          <Field label="Désignation" w={524} active={t >= 23.4 && t < 24.1} value={typed('Pose de cloison placo', t, 23.5, 32)} />
         </div>
         <div style={{ marginTop: 14, display: 'flex', gap: 18 }}>
           <Field label="Quantité (m²)" w={120} active={t >= 24.1 && t < 24.45} value={t >= 24.18 ? '12' : ''} />
@@ -742,12 +900,12 @@ function WithoutAI({ t }) {
             <Icon name="check" size={16} color={C.good} stroke={3} /> Calculé par le serveur
           </div>
           <div style={{ padding: '13px 20px', borderRadius: 12, background: C.accent, color: '#fff', fontFamily: SANS, fontWeight: 700, fontSize: 16.5,
-            transform: `scale(${pressed ? 0.93 : 1})`, boxShadow: '0 8px 20px -8px rgba(232,81,14,.7)' }}>
+            transform: `scale(${pressed ? 0.92 : 1})`, boxShadow: '0 8px 20px -8px rgba(232,81,14,.7)' }}>
             Créer le devis
           </div>
         </div>
         <div style={abs(178, 386, { padding: '10px 16px', borderRadius: 12, background: C.dark, color: C.darkFg, fontFamily: SANS, fontWeight: 600,
-          fontSize: 15, display: 'flex', alignItems: 'center', gap: 8, ...pop(t, 25.4, 0.4) })}>
+          fontSize: 15, display: 'flex', alignItems: 'center', gap: 8, ...pop(t, 25.35, 0.4) })}>
           <Icon name="check" size={17} color="#4ade80" stroke={3} /> Devis D-2026-043 créé
         </div>
       </Card>
@@ -760,81 +918,100 @@ function WithoutAI({ t }) {
         return <div key={i} style={abs(x - 22 * k * 1.4, y - 22 * k * 1.4, { width: 44 * k * 1.4, height: 44 * k * 1.4, borderRadius: '50%',
           border: `3px solid ${C.accent}`, opacity: 1 - k })} />
       })}
-      {t >= 22.3 && (
+      {t >= 22.5 && (
         <svg width="30" height="34" viewBox="0 0 24 28" style={abs(cx - 4, cy - 2, { filter: 'drop-shadow(0 3px 4px rgba(0,0,0,.3))' })}>
           <path d="M3 2l17 11-7.5 1.5L17 23l-3.5 1.8-4.4-8.7L3 21z" fill={C.fg} stroke="#fff" strokeWidth="1.8" strokeLinejoin="round" />
         </svg>
       )}
-    </div>
+    </Layer>
   )
 }
 
 /* ─── Scène 6 : 100 % libre (26 – 31 s) ────────────────────────────── */
+// Arrivée en panoramique éclair ; à la fin, la pastille AGPL grandit jusqu'à devenir le fond de l'outro.
 const MODULES = ['Accueil', 'Ventes', 'Achats', 'CRM', 'Production', 'Logistique', 'Données tech.', 'RH', 'Projets', 'Qualité', 'Maintenance', 'Comptabilité', 'Paramètres']
 const LIT = [1, 3, 4, 7, 11, 5]
+const GROW_AT = 30.62
+const PILL_RECT = [80, 258, 174, 36]
 
 function OpenSource({ t }) {
   const l1 = '$ git clone https://github.com/moreauremi/caffein'
   const l3 = '$ docker compose up -d'
+  const grow = eInOutExpo(prog(t, GROW_AT, 0.6))
+  const pill = lerpRect(PILL_RECT, [0, 0, W, H], grow)
+  const growing = t >= GROW_AT
   return (
-    <div style={{ position: 'absolute', inset: 0 }}>
-      <Kicker style={abs(80, 76, appear(t, 26.05))}>Open source</Kicker>
-      <div style={abs(78, 102, { fontFamily: SERIF, fontSize: 76, lineHeight: 1, color: C.fg, ...appear(t, 26.15) })}>
-        100 % <span style={{ color: C.accent, fontStyle: 'italic' }}>libre.</span>
-      </div>
-      <div style={abs(80, 190, { width: 560, fontFamily: SANS, fontSize: 21, lineHeight: 1.4, color: C.muted, ...appear(t, 26.4) })}>
-        Le code est à vous : lisez-le, modifiez-le, hébergez-le chez vous.
-      </div>
-      <div style={abs(80, 258, { display: 'flex', gap: 10 })}>
-        {['Licence AGPL-3.0', 'FastAPI', 'React', 'Docker'].map((b, i) => (
-          <div key={b} style={{ padding: '8px 14px', borderRadius: 999, fontFamily: SANS, fontWeight: 700, fontSize: 15,
-            background: i === 0 ? C.accent : C.surface, color: i === 0 ? '#fff' : C.fg, border: `1px solid ${i === 0 ? C.accent : C.border}`,
-            display: 'flex', alignItems: 'center', gap: 7, ...pop(t, 26.5 + i * 0.12, 0.4) }}>
-            {i === 0 && <Icon name="scale" size={16} color="#fff" />}{b}
-          </div>
-        ))}
-      </div>
-
-      {/* Terminal */}
-      <div style={abs(80, 330, { width: 580, height: 270, borderRadius: 16, background: C.dark, boxShadow: '0 30px 60px -25px rgba(0,0,0,.55)',
-        overflow: 'hidden', ...appear(t, 26.35, 0.55, 40) })}>
-        <div style={{ height: 40, display: 'flex', alignItems: 'center', gap: 8, padding: '0 16px', borderBottom: '1px solid #2a2a27' }}>
-          {['#ff5f57', '#febc2e', '#28c840'].map((c) => <div key={c} style={{ width: 12, height: 12, borderRadius: 6, background: c }} />)}
-          <div style={{ flex: 1, textAlign: 'center', fontFamily: MONO, fontSize: 13, color: '#8a8a84', marginRight: 52 }}>~/caffein</div>
+    <Layer style={enter(t, WHIP_AT + 0.2, 0.6, { x: 1500, blur: 22 })}>
+      <Layer style={leave(t, GROW_AT - 0.02, 0.45, { s: 0.9, blur: 10 })}>
+        <Kicker style={abs(80, 76)}><Kinetic t={t} start={25.9} parts={[['Open source']]} /></Kicker>
+        <div style={abs(78, 102, { fontFamily: SERIF, fontSize: 76, lineHeight: 1, color: C.fg })}>
+          <Kinetic t={t} start={25.95} parts={[['100 %'], ['libre.', { color: C.accent, fontStyle: 'italic' }]]} stagger={0.09} dur={0.8} />
         </div>
-        <div style={{ padding: '18px 20px', fontFamily: MONO, fontSize: 15.5, lineHeight: 1.85, color: C.darkFg }}>
-          <div style={{ whiteSpace: 'nowrap' }}>{typed(l1, t, 26.6, 46)}</div>
-          {t >= 27.8 && <div style={{ color: '#8a8a84' }}>Clonage dans « caffein »… fait.</div>}
-          {t >= 28.05 && <div>{typed(l3, t, 28.05, 32)}</div>}
-          {t >= 28.9 && <div><span style={{ color: '#4ade80' }}>✔</span> Container caffein <span style={{ color: '#4ade80' }}>Started</span></div>}
-          {t >= 29.2 && <div style={{ color: '#FF8A55' }}>→ http://localhost:8000 <span style={{ display: 'inline-block', width: 9, height: 18, background: C.darkFg, verticalAlign: 'middle', opacity: Math.sin(t * 9) > 0 ? 1 : 0 }} /></div>}
+        <div style={abs(80, 190, { width: 560, fontFamily: SANS, fontSize: 21, lineHeight: 1.4, color: C.muted, ...enter(t, 26.15, 0.6, { y: 20, blur: 6 }) })}>
+          Le code est à vous : lisez-le, modifiez-le, hébergez-le chez vous.
         </div>
-      </div>
-
-      {/* Modules */}
-      <div style={abs(704, 92, { fontFamily: SANS, fontWeight: 700, fontSize: 18, color: C.fg, ...appear(t, 26.6) })}>
-        13 modules. <span style={{ color: C.muted, fontWeight: 500 }}>Activez seulement ce qu'il vous faut.</span>
-      </div>
-      <div style={abs(704, 134, { display: 'grid', gridTemplateColumns: 'repeat(3, 166px)', gap: 11 })}>
-        {MODULES.map((m, i) => {
-          const litAt = LIT.indexOf(i)
-          const on = litAt >= 0 && t >= 29.0 + litAt * 0.14
-          return (
-            <div key={m} style={{ height: 58, borderRadius: 14, padding: '0 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              background: on ? C.accentSoft : C.surface, border: `1.5px solid ${on ? C.accent : C.border}`, boxShadow: '0 1px 2px rgba(0,0,0,.04)',
-              fontFamily: SANS, fontWeight: 600, fontSize: 15, whiteSpace: 'nowrap', gap: 8, color: on ? C.accentInk : C.fg, ...pop(t, 26.75 + i * 0.1, 0.45) }}>
-              {m}
-              <div style={{ width: 26, height: 15, borderRadius: 8, background: on ? C.accent : C.surface3, position: 'relative', flexShrink: 0 }}>
-                <div style={{ position: 'absolute', top: 2, left: on ? 13 : 2, width: 11, height: 11, borderRadius: 6, background: '#fff' }} />
-              </div>
+        <div style={abs(80, 258, { display: 'flex', gap: 10 })}>
+          {['Licence AGPL-3.0', 'FastAPI', 'React', 'Docker'].map((b, i) => (
+            <div key={b} style={{ padding: '8px 14px', borderRadius: 999, fontFamily: SANS, fontWeight: 700, fontSize: 15, whiteSpace: 'nowrap',
+              background: i === 0 ? C.accent : C.surface, color: i === 0 ? '#fff' : C.fg, border: `1px solid ${i === 0 ? C.accent : C.border}`,
+              display: 'flex', alignItems: 'center', gap: 7, opacity: i === 0 && growing ? 0 : undefined, ...pop(t, 26.25 + i * 0.08, 0.4) }}>
+              {i === 0 && <Icon name="scale" size={16} color="#fff" />}{b}
             </div>
-          )
-        })}
-      </div>
-      <div style={abs(704, 520, { fontFamily: SERIF, fontSize: 36, lineHeight: 1.2, color: C.fg, width: 490, ...appear(t, 29.6) })}>
-        Votre serveur. Vos données.<br /><span style={{ color: C.accent, fontStyle: 'italic' }}>Votre code.</span>
-      </div>
-    </div>
+          ))}
+        </div>
+
+        {/* Terminal */}
+        <div style={abs(80, 330, { width: 580, height: 270, borderRadius: 16, background: C.dark, boxShadow: '0 30px 60px -25px rgba(0,0,0,.55)',
+          overflow: 'hidden', ...enter(t, 26.0, 0.7, { y: 120, r: -3, blur: 12 }) })}>
+          <div style={{ height: 40, display: 'flex', alignItems: 'center', gap: 8, padding: '0 16px', borderBottom: '1px solid #2a2a27' }}>
+            {['#ff5f57', '#febc2e', '#28c840'].map((c) => <div key={c} style={{ width: 12, height: 12, borderRadius: 6, background: c }} />)}
+            <div style={{ flex: 1, textAlign: 'center', fontFamily: MONO, fontSize: 13, color: '#8a8a84', marginRight: 52 }}>~/caffein</div>
+          </div>
+          <div style={{ padding: '18px 20px', fontFamily: MONO, fontSize: 15.5, lineHeight: 1.85, color: C.darkFg }}>
+            <div style={{ whiteSpace: 'nowrap' }}>{typed(l1, t, 26.7, 48)}</div>
+            {t >= 27.85 && <div style={{ color: '#8a8a84' }}>Clonage dans « caffein »… fait.</div>}
+            {t >= 28.05 && <div>{typed(l3, t, 28.05, 32)}</div>}
+            {t >= 28.9 && <div><span style={{ color: '#4ade80' }}>✔</span> Container caffein <span style={{ color: '#4ade80' }}>Started</span></div>}
+            {t >= 29.2 && <div style={{ color: '#FF8A55' }}>→ http://localhost:8000 <span style={{ display: 'inline-block', width: 9, height: 18, background: C.darkFg, verticalAlign: 'middle', opacity: Math.sin(t * 9) > 0 ? 1 : 0 }} /></div>}
+          </div>
+        </div>
+
+        {/* Modules */}
+        <div style={abs(704, 92, { fontFamily: SANS, fontWeight: 700, fontSize: 18, color: C.fg, ...enter(t, 26.1, 0.6, { y: 16, blur: 6 }) })}>
+          13 modules. <span style={{ color: C.muted, fontWeight: 500 }}>Activez seulement ce qu'il vous faut.</span>
+        </div>
+        <div style={abs(704, 134, { display: 'grid', gridTemplateColumns: 'repeat(3, 166px)', gap: 11 })}>
+          {MODULES.map((m, i) => {
+            const litAt = LIT.indexOf(i)
+            const on = litAt >= 0 && t >= 29.0 + litAt * 0.12
+            const lit = litAt >= 0 ? punch(t, 29.0 + litAt * 0.12, 0.08) : 0
+            return (
+              <div key={m} style={{ height: 58, borderRadius: 14, padding: '0 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                background: on ? C.accentSoft : C.surface, border: `1.5px solid ${on ? C.accent : C.border}`, boxShadow: '0 1px 2px rgba(0,0,0,.04)',
+                fontFamily: SANS, fontWeight: 600, fontSize: 15, whiteSpace: 'nowrap', gap: 8, color: on ? C.accentInk : C.fg,
+                ...(t < 26.25 + i * 0.06 + 0.6 ? enter(t, 26.25 + i * 0.06, 0.6, { y: 60, s: 0.7, blur: 10 }) : { transform: `scale(${1 + lit})` }) }}>
+                {m}
+                <div style={{ width: 26, height: 15, borderRadius: 8, background: on ? C.accent : C.surface3, position: 'relative', flexShrink: 0 }}>
+                  <div style={{ position: 'absolute', top: 2, left: on ? 13 : 2, width: 11, height: 11, borderRadius: 6, background: '#fff' }} />
+                </div>
+              </div>
+            )
+          })}
+        </div>
+        <div style={abs(704, 520, { fontFamily: SERIF, fontSize: 36, lineHeight: 1.2, color: C.fg, width: 490 })}>
+          <Kinetic t={t} start={29.55} parts={[['Votre serveur. Vos données.'], ['\n'], ['Votre code.', { color: C.accent, fontStyle: 'italic' }]]} stagger={0.07} />
+        </div>
+      </Layer>
+      {growing && (
+        <div style={abs(pill[0], pill[1], { width: pill[2], height: pill[3], borderRadius: lerp(18, 0, grow), background: C.accent,
+          display: 'flex', alignItems: 'center', gap: 7, padding: '0 14px', overflow: 'hidden' })}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, opacity: 1 - prog(t, GROW_AT, 0.12), whiteSpace: 'nowrap',
+            fontFamily: SANS, fontWeight: 700, fontSize: 15, color: '#fff' }}>
+            <Icon name="scale" size={16} color="#fff" />Licence AGPL-3.0
+          </div>
+        </div>
+      )}
+    </Layer>
   )
 }
 
@@ -842,30 +1019,28 @@ function OpenSource({ t }) {
 const BURST = Array.from({ length: 22 }, (_, i) => ({ a: (i / 22) * Math.PI * 2 + (i % 3) * 0.2, d: 170 + (i * 37) % 140, s: 8 + (i % 4) * 4, dark: i % 3 === 0 }))
 
 function Outro({ t }) {
-  const burst = prog(t, 31.75, 1.1)
-  const parts = ['Libre.', 'Auto-hébergé.', 'Avec ou sans IA.']
+  const burst = prog(t, 31.7, 1.1)
   const shine = prog(t, 33.7, 0.8)
   const wordW = 720
   const left = (W - wordW) / 2
   return (
-    <div style={{ position: 'absolute', inset: 0 }}>
+    <Layer>
       {burst > 0 && burst < 1 && BURST.map((b, i) => (
-        <div key={i} style={abs(640 + Math.cos(b.a) * b.d * 1.6 * eOut(burst) - b.s / 2, 245 + Math.sin(b.a) * b.d * eOut(burst) - b.s / 2, {
+        <div key={i} style={abs(640 + Math.cos(b.a) * b.d * 1.6 * eOutExpo(burst) - b.s / 2, 245 + Math.sin(b.a) * b.d * eOutExpo(burst) - b.s / 2, {
           width: b.s, height: b.s, borderRadius: i % 2 ? b.s : 3, background: b.dark ? C.dark : '#fff', opacity: 1 - burst,
           transform: `rotate(${burst * 360}deg)` })} />
       ))}
       <Steam t={t} start={32.1} x={left + (LOGO_LETTERS[4][1] / LOGO_W) * wordW} y={160} color="#fff" />
       <div style={abs(left, 180)}>
-        <Wordmark t={t} start={31.3} width={wordW} color="#fff" step={0.08} />
+        <Wordmark t={t} start={31.32} width={wordW} color="#fff" step={0.07} />
       </div>
-      <div style={abs(0, 358, { width: W, display: 'flex', justifyContent: 'center', gap: 16, fontFamily: SERIF, fontSize: 48, color: '#fff' })}>
-        {parts.map((w, i) => (
-          <span key={w} style={{ display: 'inline-block', fontStyle: i === 2 ? 'italic' : 'normal', ...appear(t, 32.15 + i * 0.3, 0.5, 30) }}>{w}</span>
-        ))}
+      <div style={abs(0, 358, { width: W, textAlign: 'center', fontFamily: SERIF, fontSize: 48, color: '#fff' })}>
+        <Kinetic t={t} start={32.1} parts={[['Libre.'], ['Auto-hébergé.'], ['Avec ou sans IA.', { fontStyle: 'italic' }]]} stagger={0.12} dur={0.8} />
       </div>
       <div style={abs(0, 462, { width: W, display: 'flex', justifyContent: 'center' })}>
         <div style={{ position: 'relative', overflow: 'hidden', display: 'flex', alignItems: 'center', gap: 12, padding: '15px 26px', borderRadius: 999,
-          background: '#fff', color: C.fg, fontFamily: MONO, fontWeight: 600, fontSize: 21, boxShadow: '0 20px 40px -18px rgba(0,0,0,.45)', ...pop(t, 33.2, 0.5) }}>
+          background: '#fff', color: C.fg, fontFamily: MONO, fontWeight: 600, fontSize: 21, boxShadow: '0 20px 40px -18px rgba(0,0,0,.45)',
+          ...enter(t, 33.1, 0.7, { y: 50, s: 0.6, blur: 10 }) }}>
           <Icon name="github" size={24} color={C.fg} />
           github.com/<span style={{ color: C.accent }}>moreauremi/caffein</span>
           {shine > 0 && shine < 1 && (
@@ -875,10 +1050,27 @@ function Outro({ t }) {
         </div>
       </div>
       <div style={abs(0, 556, { width: W, textAlign: 'center', fontFamily: SANS, fontWeight: 600, fontSize: 17, color: 'rgba(255,255,255,.88)',
-        letterSpacing: '.02em', ...appear(t, 33.75, 0.5, 10) })}>
+        letterSpacing: '.02em', ...enter(t, 33.7, 0.6, { y: 16, blur: 6 }) })}>
         AGPL-3.0 · docker compose up -d · Français / English
       </div>
-    </div>
+    </Layer>
+  )
+}
+
+/* ─── La scène complète ────────────────────────────────────────────── */
+function Stage({ t }) {
+  return (
+    <>
+      <Background t={t} />
+      <Scene t={t} from={0} to={4.12} drift={0.04} punches={[0.98]}><Intro t={t} /></Scene>
+      <Scene t={t} from={4.05} to={9.25} punches={[7.6]}><Chores t={t} /></Scene>
+      <Scene t={t} from={8.4} to={15.26} drift={0.025} punches={[11.92, 13.97]}><QuoteFromSentence t={t} /></Scene>
+      <Scene t={t} from={14.9} to={21.06} drift={0.02} punches={[17.85]}><Delegated t={t} /></Scene>
+      <Scene t={t} from={21.0} to={26.2} drift={0.02} punches={[FLIP_AT + 0.1, 25.22]} origin="640px 360px"><WithoutAI t={t} /></Scene>
+      <Scene t={t} from={25.9} to={31.3} drift={0.02} punches={[29.0]}><OpenSource t={t} /></Scene>
+      <Scene t={t} from={OUTRO_AT} to={DURATION + 1} drift={0.05} punches={[31.75]}><Outro t={t} /></Scene>
+      <Blackout t={t} />
+    </>
   )
 }
 
@@ -1056,7 +1248,7 @@ function Controls({ t, playing, onToggle, onRestart, onSeek, onExport, exporting
           onPointerMove={(e) => { if (e.buttons) seekFrom(e) }}
           style={{ flex: 1, height: 22, display: 'flex', alignItems: 'center', cursor: exporting ? 'default' : 'pointer', touchAction: 'none' }}>
           <div style={{ position: 'relative', width: '100%', height: 6, borderRadius: 3, background: C.surface3 }}>
-            {CUTS.map((c) => <div key={c} style={{ position: 'absolute', left: `${(c / DURATION) * 100}%`, top: 0, width: 2, height: 6, background: '#fff' }} />)}
+            {BEATS.map((c) => <div key={c} style={{ position: 'absolute', left: `${(c / DURATION) * 100}%`, top: 0, width: 2, height: 6, background: '#fff' }} />)}
             <div style={{ position: 'absolute', left: 0, top: 0, height: 6, borderRadius: 3, width: `${(t / DURATION) * 100}%`, background: C.accent }} />
           </div>
         </div>
@@ -1239,15 +1431,7 @@ export default function CaffeinPromo({ autoPlay = true, loop = false, showContro
       <style>{"@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400..800&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;600&display=swap'); .caffein-promo, .caffein-promo * { box-sizing: border-box; }"}</style>
       <div ref={boxRef} style={{ position: 'relative', width: '100%', aspectRatio: '16 / 9', overflow: 'hidden', borderRadius: 16, background: C.bg }}>
         <div ref={stageRef} style={{ position: 'absolute', left: 0, top: 0, width: W, height: H, overflow: 'hidden', transform: `scale(${scale})`, transformOrigin: '0 0' }}>
-          <Background t={T} />
-          <Scene t={T} from={0} to={4}><Intro t={T} /></Scene>
-          <Scene t={T} from={4} to={9}><Chores t={T} /></Scene>
-          <Scene t={T} from={9} to={15}><QuoteFromSentence t={T} /></Scene>
-          <Scene t={T} from={15} to={21} zoom={0.02}><Delegated t={T} /></Scene>
-          <Scene t={T} from={21} to={26}><WithoutAI t={T} /></Scene>
-          <Scene t={T} from={26} to={31} zoom={0.02}><OpenSource t={T} /></Scene>
-          <Scene t={T} from={31} to={DURATION + 1} zoom={0.04}><Outro t={T} /></Scene>
-          <Wipes t={T} />
+          <Stage t={T} />
         </div>
         {exporting && <ExportOverlay progress={progress} onCancel={() => { cancelRef.current = true }} />}
       </div>

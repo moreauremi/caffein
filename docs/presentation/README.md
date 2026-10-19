@@ -29,13 +29,16 @@ et l'export utilisent les polices du système.
 
 | Temps | Scène |
 |---|---|
-| 0 – 4 s | le logo arrive lettre par lettre : « L'ERP libre et modulaire des petites entreprises » |
-| 4 – 9 s | les trucs chiants (relances, justificatifs, TVA, URSSAF…) tombent et s'empilent |
-| 9 – 15 s | l'IA s'en charge : un devis complet à partir d'une seule phrase |
-| 15 – 21 s | justificatifs classés tout seuls, relances rédigées, « Mes vues » à la demande |
-| 21 – 26 s | et sans IA ? On coupe l'assistant, le devis se remplit à la main, le serveur calcule |
-| 26 – 31 s | 100 % libre : `git clone`, `docker compose up -d`, les 13 modules |
-| 31 – 35 s | « Libre. Auto-hébergé. Avec ou sans IA. » et l'adresse du dépôt |
+| 0 – 4 s | un point tombe, rebondit et s'étire en trait ; le logo en jaillit. La caméra plonge dans le point du « i » |
+| 4 – 9 s | les trucs chiants (relances, justificatifs, TVA, URSSAF…) tombent et s'empilent, puis sont aspirés par le noyau de l'IA |
+| 9 – 15 s | le noyau s'ouvre en barre de saisie : un devis complet à partir d'une seule phrase |
+| 15 – 21 s | le devis se replie en panneau : justificatifs classés, relances rédigées, « Mes vues » à la demande |
+| 21 – 26 s | les panneaux fusionnent en un interrupteur ; au ralenti, on coupe l'IA, et le devis se remplit à la main |
+| 26 – 31 s | panoramique éclair vers le code : 100 % libre, `git clone`, `docker compose up -d`, les 13 modules |
+| 31 – 35 s | la pastille AGPL envahit l'écran : « Libre. Auto-hébergé. Avec ou sans IA. » et l'adresse du dépôt |
+
+Pas de rideau entre les scènes : ce sont les éléments eux-mêmes qui se transforment d'une scène à l'autre, avec des
+accélérations exponentielles, des ralentis, des coups de zoom sur les temps forts et du flou de vitesse.
 
 Les textes et les exemples suivent les fonctionnalités décrites dans le [README](../../README.md).
 
