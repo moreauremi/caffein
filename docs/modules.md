@@ -222,6 +222,9 @@ Un module avec des écrans sur mesure ajoute `frontend/src/modules/<clé>/index.
 
 ## Ajouter un module
 
+> Première fois ? Suivez le tutoriel pas à pas [ajouter-un-module.md](ajouter-un-module.md) : il construit ce même
+> module « Flotte » de bout en bout, de la table à l'écran, avec les tests et les erreurs fréquentes.
+
 1. Créer `backend/caffein/modules/<clé>/__init__.py` avec `MODULE = Module(...)`, ses migrations et ses entités.
 2. L'ajouter à la liste `MODULES` de `backend/caffein/modules/__init__.py`.
 3. Écrire ses tests dans `backend/tests/modules/test_<clé>.py` (outils communs : `tests/modules/helpers.py`).

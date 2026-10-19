@@ -1,6 +1,11 @@
 <div align="center">
 
-# Caffein
+<h1>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/logo/caffein-blanc.svg">
+    <img src="docs/logo/caffein-noir.svg" alt="Caffein" width="300">
+  </picture>
+</h1>
 
 **L'ERP libre et modulaire des petites entreprises.**
 
@@ -13,6 +18,10 @@ Logiciel libre, auto-hébergé sur votre serveur Linux ou dans un conteneur.
 ![Docker](https://img.shields.io/badge/docker-pr%C3%AAt-2496ED)
 
 ![Tableau de bord de Caffein](docs/screenshots/accueil.png)
+
+**La présentation en 35 secondes :**
+
+<a href="https://youtu.be/kiyTJEJYwf4"><img src="docs/presentation/miniature.jpg" alt="Voir la présentation de Caffein sur YouTube (35 secondes)" width="640"></a>
 
 </div>
 
@@ -36,7 +45,8 @@ Logiciel libre, auto-hébergé sur votre serveur Linux ou dans un conteneur.
 
 Les modules se parlent sans dépendre les uns des autres : livrer une commande sort les articles du stock, réceptionner une
 commande fournisseur les y fait entrer, déclarer une fabrication consomme les composants… si la Logistique est active.
-Ajouter un module ne touche pas aux autres : voir [docs/modules.md](docs/modules.md).
+Ajouter un module ne touche pas aux autres : suivez le guide pas à pas [docs/ajouter-un-module.md](docs/ajouter-un-module.md)
+(référence complète : [docs/modules.md](docs/modules.md)).
 
 ## Fonctionnalités
 
@@ -198,6 +208,8 @@ deploy/            service systemd, reverse proxy, désinstallation
 
 Les contributions sont bienvenues : tickets, corrections, traductions, nouvelles fonctionnalités.
 Lisez [CONTRIBUTING.md](CONTRIBUTING.md) avant d'ouvrir une pull request. Pour une faille de sécurité, suivez [SECURITY.md](SECURITY.md).
+Vous voulez ajouter votre propre module (véhicules, chantiers, contrats…) ? Le guide [docs/ajouter-un-module.md](docs/ajouter-un-module.md)
+le construit pas à pas, sans écrire de React.
 
 ## Réalisation
 
