@@ -44,6 +44,8 @@ s'activent et se règlent par utilisateur. Voir `docs/modules.md`.
 - Migration 3 : table `dashboard_views`.
 
 ### Modifié
+- **Logo** : l'interface et le README affichent le mot-symbole officiel ; le pictogramme reste pour les petits
+  formats (barre latérale repliée, favicon).
 - Les lignes des factures et devis sont dans la table `invoice_lines` (elles étaient dans un champ JSON) ; la migration 4
   les recopie. Les totaux d'une facture en cours de saisie sont calculés par le serveur.
 - Les membres reçoivent le rôle « Équipe (accès complet) » : mêmes accès qu'avant.

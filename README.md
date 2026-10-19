@@ -1,6 +1,11 @@
 <div align="center">
 
-# Caffein
+<h1>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/logo/caffein-blanc.svg">
+    <img src="docs/logo/caffein-noir.svg" alt="Caffein" width="300">
+  </picture>
+</h1>
 
 **L'ERP libre et modulaire des petites entreprises.**
 
