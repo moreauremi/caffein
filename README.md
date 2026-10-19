@@ -14,6 +14,10 @@ Logiciel libre, auto-hébergé sur votre serveur Linux ou dans un conteneur.
 
 ![Tableau de bord de Caffein](docs/screenshots/accueil.png)
 
+**La présentation en 35 secondes :**
+
+<a href="https://youtu.be/kiyTJEJYwf4"><img src="docs/presentation/miniature.jpg" alt="Voir la présentation de Caffein sur YouTube (35 secondes)" width="640"></a>
+
 </div>
 
 ## Les modules

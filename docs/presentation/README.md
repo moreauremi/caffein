@@ -5,7 +5,10 @@ pénibles à votre place, mais où tout se fait aussi sans elle. Écrite en JSX,
 
 ## La voir
 
-Téléchargez [`apercu.html`](apercu.html) (bouton « Download raw file » sur GitHub) et ouvrez-le dans votre navigateur.
+En vidéo sur YouTube : [youtu.be/kiyTJEJYwf4](https://youtu.be/kiyTJEJYwf4) (la miniature du README est
+[`miniature.jpg`](miniature.jpg), 1280 × 720 : elle peut aussi servir de miniature personnalisée sur YouTube).
+
+En direct dans le navigateur : téléchargez [`apercu.html`](apercu.html) (bouton « Download raw file » sur GitHub) et ouvrez-le dans votre navigateur.
 Le fichier contient tout : il n'y a rien à installer.
 
 Contrôles sous l'animation : lecture et pause (aussi avec la barre d'espace), rejouer, timeline cliquable.
@@ -72,5 +75,6 @@ node docs/presentation/build.mjs
 - `apercu.jsx` : le point d'entrée de l'aperçu.
 - `apercu.html` : l'aperçu prêt à ouvrir, généré par `build.mjs`.
 - `build.mjs` : reconstruit `apercu.html`.
+- `miniature.jpg` : la miniature de la vidéo (README, YouTube).
 
 Une autre vidéo, la démonstration de « Mes vues » (Remotion), est dans [`../video/`](../video/).
