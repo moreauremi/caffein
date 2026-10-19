@@ -8,6 +8,7 @@ Merci de votre intérêt ! Tickets, corrections, traductions et nouvelles foncti
   (Paramètres → À propos).
 - **Une nouvelle fonctionnalité ?** Ouvrez d'abord un ticket pour en discuter : cela évite de travailler sur une pull request
   qui ne pourrait pas être intégrée.
+- **Un nouveau module ?** Suivez le guide pas à pas [docs/ajouter-un-module.md](docs/ajouter-un-module.md).
 - **Une faille de sécurité ?** Pas de ticket public : suivez [SECURITY.md](SECURITY.md).
 
 ## Environnement de développement

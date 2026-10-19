@@ -36,7 +36,8 @@ Logiciel libre, auto-hébergé sur votre serveur Linux ou dans un conteneur.
 
 Les modules se parlent sans dépendre les uns des autres : livrer une commande sort les articles du stock, réceptionner une
 commande fournisseur les y fait entrer, déclarer une fabrication consomme les composants… si la Logistique est active.
-Ajouter un module ne touche pas aux autres : voir [docs/modules.md](docs/modules.md).
+Ajouter un module ne touche pas aux autres : suivez le guide pas à pas [docs/ajouter-un-module.md](docs/ajouter-un-module.md)
+(référence complète : [docs/modules.md](docs/modules.md)).
 
 ## Fonctionnalités
 
@@ -198,6 +199,8 @@ deploy/            service systemd, reverse proxy, désinstallation
 
 Les contributions sont bienvenues : tickets, corrections, traductions, nouvelles fonctionnalités.
 Lisez [CONTRIBUTING.md](CONTRIBUTING.md) avant d'ouvrir une pull request. Pour une faille de sécurité, suivez [SECURITY.md](SECURITY.md).
+Vous voulez ajouter votre propre module (véhicules, chantiers, contrats…) ? Le guide [docs/ajouter-un-module.md](docs/ajouter-un-module.md)
+le construit pas à pas, sans écrire de React.
 
 ## Réalisation
 

@@ -8,6 +8,10 @@ Caffein devient un **ERP modulaire** : les onglets Factures, TVA, URSSAF… lais
 s'activent et se règlent par utilisateur. Voir `docs/modules.md`.
 
 ### Ajouté
+- **Guide « Ajouter un module »** (`docs/ajouter-un-module.md`) : un tutoriel pas à pas, de la table à l'écran,
+  avec les tests et les erreurs fréquentes.
+- **Animation de présentation** (`docs/presentation/`) : 35 secondes en React, exportable en MP4 depuis le navigateur.
+- **Logo** (`docs/logo/`) : le mot-symbole en SVG et PNG, noir et blanc.
 - **Modules** : Accueil, Données techniques, RH, Achats, Ventes, CRM, Production, Logistique, Projets, Qualité,
   Maintenance, Comptabilité et Paramètres. Chaque module apporte ses tables SQL, ses écrans, ses chiffres clés, ses
   raccourcis et ses données de démonstration ; il s'active ou se désactive dans Paramètres → Modules (dépendances
