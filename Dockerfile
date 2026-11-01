@@ -12,7 +12,7 @@ COPY frontend/ ./
 RUN npm run build
 
 # ── 2. Application Python ────────────────────────────────────────────────
-FROM python:3.13-slim
+FROM python:3.15-slim
 
 LABEL org.opencontainers.image.title="Caffein" \
       org.opencontainers.image.description="Gestion libre pour freelances et TPE : devis, factures, relances, TVA et URSSAF" \
